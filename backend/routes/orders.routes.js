@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const verifyToken = require('./auth.middleware.js');
-const { getOrders, saveOrders, getUsers, getProducts, saveProducts } = require('../db.js');
+const { Order, User, Product, generateId } = require('../db.js');
 
 const router = Router();
 
@@ -15,8 +15,7 @@ router.post('/', verifyToken, (req, res) => {
         }
 
         // 1. Obtener usuario real de la DB (Fuente de verdad)
-        const users = getUsers();
-        const user = users.find(u => u.id === req.user.userId);
+        const user = User.findById(req.user.userId);
 
         if (!user) {
             return res.status(404).json({ message: 'Usuario no encontrado' });
@@ -28,18 +27,18 @@ router.post('/', verifyToken, (req, res) => {
         }
 
         // 3. RECALCULAR TOTAL Y VALIDAR PRODUCTOS (Lógica de Negocio Segura)
-        const productsDB = getProducts();
+        const productsDB = Product.findAll(); // Obtenemos snapshot del inventario
         let calculatedTotal = 0;
         const sanitizedItems = [];
-        const productsToUpdate = [...productsDB]; // Copia para manipular stock
+        const productsToUpdate = [...productsDB]; // Referencia para manipular stock (Simulación transacción)
 
         for (const item of items) {
             // Validar existencia del producto
-            const product = productsDB.find(p => p.id === item.id);
+            const product = productsToUpdate.find(p => p.id === item.id);
             
             if (!product) {
                 return res.status(400).json({ 
-                    message: `El producto con ID ${item.id} no existe o ya no está disponible.` 
+                    message: `El producto '${item.title || item.id}' no existe o ya no está disponible.` 
                 });
             }
 
@@ -72,12 +71,10 @@ router.post('/', verifyToken, (req, res) => {
         }
 
         // 4. PERSISTIR CAMBIOS DE STOCK (Commit de la transacción)
-        saveProducts(productsToUpdate);
-
-        const orders = getOrders();
+        Product.saveAll(productsToUpdate);
         
         const newOrder = {
-            id: Date.now().toString(), // ID como string para consistencia
+            id: generateId(),          // ID centralizado
             userId: user.id,
             items: sanitizedItems,     // Usamos los items validados
             total: calculatedTotal,    // Usamos el total calculado por nosotros
@@ -92,8 +89,7 @@ router.post('/', verifyToken, (req, res) => {
             }]
         };
 
-        orders.push(newOrder);
-        saveOrders(orders);
+        Order.create(newOrder);
 
         return res.status(201).json({
             message: 'Pedido creado correctamente',
@@ -108,8 +104,8 @@ router.post('/', verifyToken, (req, res) => {
 
 // 2. OBTENER MIS PEDIDOS (GET /api/orders)
 router.get('/', verifyToken, (req, res) => {
-    const orders = getOrders();
-    // Filtrar solo los pedidos del usuario actual
+    const orders = Order.findAll();
+    // Filtrar solo los pedidos del usuario actual (Service Logic)
     const myOrders = orders.filter(o => o.userId === req.user.userId);
     res.json(myOrders);
 });

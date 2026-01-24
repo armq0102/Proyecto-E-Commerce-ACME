@@ -2,7 +2,7 @@ const { Router } = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const verifyToken = require('./auth.middleware.js');
-const { getUsers, saveUsers } = require('../db.js'); // Importamos la DB
+const { User, generateId } = require('../db.js'); // Importamos Modelos
 
 const router = Router();
 
@@ -22,34 +22,26 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Todos los campos son obligatorios' });
     }
 
-    // 1. Cargar usuarios actuales de la DB
-    const users = getUsers();
-
-    const exists = users.find(u => u.email === email);
-    if (exists) {
-      return res.status(409).json({ message: 'El email ya existe' });
-    }
-
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = {
-      id: Date.now(), // ID único basado en tiempo
+      id: generateId(),
       name,
       email,
       password: hashedPassword,
       role: 'user' // Rol por defecto para nuevos registros
     };
 
-    users.push(user);
-    
-    // 2. Guardar en la DB
-    saveUsers(users);
+    User.create(user);
 
     res.status(201).json({
       message: 'Usuario registrado con éxito',
       user: { id: user.id, name: user.name, email: user.email }
     });
   } catch (error) {
+    if (error.message === 'EMAIL_EXISTS') {
+        return res.status(409).json({ message: 'El email ya está registrado' });
+    }
     console.error('Error en register:', error);
     res.status(500).json({ message: 'Error interno del servidor', error: error.message });
   }
@@ -64,10 +56,10 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Email y password son obligatorios' });
     }
 
-    // 1. Cargar usuarios de la DB
-    const users = getUsers();
-
+    // 1. Buscar usuario por ID (Simulamos búsqueda por email escaneando todo por ahora)
+    const users = User.findAll();
     const user = users.find(u => u.email === email);
+
     if (!user) {
       console.log('❌ Usuario no encontrado en DB');
       return res.status(401).json({ message: 'Credenciales inválidas' });
@@ -100,8 +92,7 @@ router.post('/login', async (req, res) => {
 // Requiere header Authorization: Bearer <token>
 router.get('/me', verifyToken, (req, res) => {
   // req.user viene del middleware verifyToken
-  const users = getUsers(); // Cargar DB actualizada
-  const user = users.find(u => u.id === req.user.userId);
+  const user = User.findById(req.user.userId);
   
   if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
 
@@ -119,24 +110,18 @@ router.get('/me', verifyToken, (req, res) => {
 // RUTA PROTEGIDA: Actualizar datos del usuario (PUT /api/auth/update)
 router.put('/update', verifyToken, (req, res) => {
   const { name, phone, address, document } = req.body;
-  const users = getUsers();
   
-  // Encontrar el índice del usuario en el array
-  const userIndex = users.findIndex(u => u.id === req.user.userId);
-  
-  if (userIndex === -1) {
-    return res.status(404).json({ message: 'Usuario no encontrado' });
-  }
+  const updates = {};
+  if (name) updates.name = name;
+  if (phone) updates.phone = phone;
+  if (address) updates.address = address;
+  if (document) updates.document = document;
 
-  // Actualizar solo los campos permitidos (mantenemos email y password igual)
-  users[userIndex].name = name || users[userIndex].name;
-  users[userIndex].phone = phone || users[userIndex].phone;
-  users[userIndex].address = address || users[userIndex].address;
-  users[userIndex].document = document || users[userIndex].document;
+  const updatedUser = User.updateById(req.user.userId, updates);
 
-  saveUsers(users);
+  if (!updatedUser) return res.status(404).json({ message: 'Usuario no encontrado' });
 
-  res.json({ message: 'Perfil actualizado correctamente', user: users[userIndex] });
+  res.json({ message: 'Perfil actualizado correctamente', user: updatedUser });
 });
 
 module.exports = router;
