@@ -1,20 +1,7 @@
 // script.js - Lógica principal del frontend (Carrito y Productos)
 
 // Base de datos de productos (Coincide con los IDs de tus HTMLs)
-const PRODUCTS = [
-    // Hombres
-    { id: 'p1', title: 'Camisa clásica', price: 29.99, img: 'images/2.png' },
-    { id: 'p2', title: 'Pantalón urbano', price: 49.99, img: 'images/3.png' },
-    { id: 'p3', title: 'Chaqueta ligera', price: 79.99, img: 'images/4.png' },
-    // Mujeres
-    { id: 'p4', title: 'Vestido veraniego', price: 39.99, img: 'images/5.png' },
-    { id: 'p5', title: 'Blusa estampada', price: 24.99, img: 'images/1.png' },
-    { id: 'p6', title: 'Falda midi', price: 34.99, img: 'images/2.png' },
-    // Accesorios
-    { id: 'p7', title: 'Gorra clásica', price: 14.99, img: 'images/4.png' },
-    { id: 'p8', title: 'Bolso de mano', price: 49.99, img: 'images/5.png' },
-    { id: 'p9', title: 'Cinturón de cuero', price: 24.99, img: 'images/2.png' }
-];
+let PRODUCTS = []; // Ahora vacío, se llena desde el backend
 
 // --- SISTEMA DE FEEDBACK (TOASTS) ---
 function showToast(message, type = 'info') {
@@ -45,16 +32,8 @@ async function syncProducts() {
     try {
         const response = await fetch('http://localhost:3000/api/products');
         if (response.ok) {
-            const backendProducts = await response.json();
-            // Actualizar stock en el array local PRODUCTS
-            backendProducts.forEach(bp => {
-                const localP = PRODUCTS.find(p => p.id === bp.id);
-                if (localP) {
-                    localP.stock = bp.stock;
-                    localP.status = bp.status; // Sincronizamos también el estado
-                    localP.price = bp.price;   // Sincronizamos precio (Source of Truth)
-                }
-            });
+            PRODUCTS = await response.json(); // Reemplazo total con datos reales de Mongo
+            console.log('✅ Productos cargados desde Backend:', PRODUCTS.length);
         }
     } catch (error) {
         console.error('Error sincronizando productos:', error);
@@ -91,8 +70,28 @@ function renderFeaturedProducts() {
 function updateCategoryPagesUI() {
     const buttons = document.querySelectorAll('button[data-id]');
     buttons.forEach(btn => {
-        const id = btn.getAttribute('data-id');
-        const product = PRODUCTS.find(p => p.id === id);
+        let id = btn.getAttribute('data-id');
+        let product = PRODUCTS.find(p => p.id === id);
+        
+        // --- FIX: Compatibilidad con IDs antiguos vs Mongo IDs ---
+        // Si no encuentra el producto por ID (ej: 'p1'), intenta buscarlo por el Título en el HTML
+        if (!product) {
+            const card = btn.closest('.product-card');
+            if (card) {
+                const title = card.querySelector('h3')?.textContent.trim();
+                if (title) {
+                    product = PRODUCTS.find(p => p.title === title);
+                    if (product) {
+                        // ¡Encontrado! Actualizamos el botón con el ID real de Mongo
+                        const realId = product.id || product._id;
+                        console.log(`🔗 Vinculado: ${title} -> ${realId}`);
+                        btn.setAttribute('data-id', realId);
+                        btn.setAttribute('onclick', `addToCart('${realId}')`);
+                    }
+                }
+            }
+        }
+        // ---------------------------------------------------------
         
         if (product && product.stock !== undefined) {
             const card = btn.closest('.product-card');
@@ -154,8 +153,13 @@ function saveCart(cart) {
 
 // Agregar al carrito (Global para que funcione con onclick en HTML)
 window.addToCart = function(id) {
-    const product = PRODUCTS.find(p => p.id === id);
-    if (!product) return;
+    const product = PRODUCTS.find(p => p.id === id || p._id === id);
+    
+    if (!product) {
+        console.error(`Error: Producto con ID '${id}' no encontrado. Intenta recargar la página.`);
+        showToast('Error: Producto no encontrado.', 'error');
+        return;
+    }
 
     // Validar estado (Hidden)
     if (product.status === 'hidden') {

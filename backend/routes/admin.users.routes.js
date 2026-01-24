@@ -1,23 +1,14 @@
 const { Router } = require('express');
-const { User } = require('../db.js');
-
+const User = require('../User.model');
 const router = Router();
 
-// GET /api/admin/users
-router.get('/', (req, res) => {
+// GET: Listar usuarios
+router.get('/', async (req, res) => {
     try {
-        const users = User.findAll();
-
-        // Sanitización: Eliminar passwords antes de enviar
-        const sanitizedUsers = users.map(user => {
-            const { password, ...userWithoutPassword } = user;
-            return userWithoutPassword;
-        });
-
-        res.json(sanitizedUsers);
+        const users = await User.find({}).select('-password');
+        res.json(users);
     } catch (error) {
-        console.error('Error admin get users:', error);
-        res.status(500).json({ message: 'Error al obtener usuarios' });
+        res.status(500).json({ msg: 'Error al obtener usuarios' });
     }
 });
 

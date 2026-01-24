@@ -1,21 +1,14 @@
 const { Router } = require('express');
-const verifyToken = require('./auth.middleware.js');
-const verifyAdmin = require('./admin.middleware.js');
-
-// Importar sub-rutas especializadas
-const adminOrdersRoutes = require('./admin.orders.routes.js');
-const adminProductsRoutes = require('./admin.products.routes.js');
-const adminUsersRoutes = require('./admin.users.routes.js');
+const verifyToken = require('../auth.middleware');
+const verifyAdmin = require('../admin.middleware');
 
 const router = Router();
 
-// --- MIDDLEWARE DE SEGURIDAD GLOBAL ---
-// Todas las rutas debajo de este punto requieren ser Admin
+// Middleware de seguridad para todas las rutas de admin
 router.use(verifyToken, verifyAdmin);
 
-// --- DELEGACIÓN DE RUTAS ---
-router.use('/orders', adminOrdersRoutes);
-router.use('/products', adminProductsRoutes);
-router.use('/users', adminUsersRoutes);
+router.use('/products', require('./admin.products.routes'));
+router.use('/orders', require('./admin.orders.routes'));
+router.use('/users', require('./admin.users.routes'));
 
 module.exports = router;

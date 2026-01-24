@@ -1,127 +1,192 @@
 const { Router } = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const verifyToken = require('./auth.middleware.js');
-const { User, generateId } = require('../db.js'); // Importamos Modelos
+const User = require('../User.model');
+const verifyToken = require('../auth.middleware');
 
 const router = Router();
 
-// RUTA PROTEGIDA: Obtener datos del usuario actual
-// Requiere header Authorization: Bearer <token>
-router.get('/test', (req, res) => {
-  res.json({ ok: true, message: 'auth router funcionando' });
-});
+// ==========================================
+// RUTAS DE AUTENTICACIÓN
+// ==========================================
 
-const JWT_SECRET = process.env.JWT_SECRET || 'secreto_super_seguro';
-
+/**
+ * @route   POST /api/auth/register
+ * @desc    Registrar un nuevo usuario
+ * @access  Public
+ */
 router.post('/register', async (req, res) => {
-  try {
-    const { name, email, password } = req.body || {};
+    try {
+        const { name, email, password } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Todos los campos son obligatorios' });
+        // 1. Validación básica de entrada
+        if (!name || !email || !password) {
+            return res.status(400).json({ 
+                ok: false, 
+                msg: 'Por favor, complete todos los campos (nombre, email, contraseña).' 
+            });
+        }
+
+        // 2. Crear y guardar usuario (El hash se maneja en el modelo User)
+        const user = new User({ name, email, password });
+        await user.save();
+
+        // 3. Respuesta exitosa
+        res.status(201).json({ 
+            ok: true, 
+            msg: 'Usuario registrado con éxito. Ahora puedes iniciar sesión.' 
+        });
+
+    } catch (error) {
+        // Manejo específico para email duplicado (MongoDB Error 11000)
+        if (error.code === 11000) {
+            return res.status(409).json({ 
+                ok: false, 
+                msg: 'El correo electrónico ya está registrado.' 
+            });
+        }
+
+        console.error('❌ Error en registro:', error);
+        res.status(500).json({ 
+            ok: false, 
+            msg: 'Error interno del servidor al registrar usuario.' 
+        });
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = {
-      id: generateId(),
-      name,
-      email,
-      password: hashedPassword,
-      role: 'user' // Rol por defecto para nuevos registros
-    };
-
-    User.create(user);
-
-    res.status(201).json({
-      message: 'Usuario registrado con éxito',
-      user: { id: user.id, name: user.name, email: user.email }
-    });
-  } catch (error) {
-    if (error.message === 'EMAIL_EXISTS') {
-        return res.status(409).json({ message: 'El email ya está registrado' });
-    }
-    console.error('Error en register:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error.message });
-  }
 });
 
+/**
+ * @route   POST /api/auth/login
+ * @desc    Iniciar sesión y obtener token
+ * @access  Public
+ */
 router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body || {};
-    console.log('🔍 Intento de login:', { email, passwordRecibido: !!password });
+    try {
+        const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email y password son obligatorios' });
+        // 1. Validación básica
+        if (!email || !password) {
+            return res.status(400).json({ 
+                ok: false, 
+                msg: 'Por favor, ingrese email y contraseña.' 
+            });
+        }
+
+        // 2. Buscar usuario
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ 
+                ok: false, 
+                msg: 'Credenciales inválidas (Usuario no encontrado).' 
+            });
+        }
+
+        // 3. Verificar contraseña
+        const isMatch = await user.comparePassword(password);
+        if (!isMatch) {
+            return res.status(400).json({ 
+                ok: false, 
+                msg: 'Credenciales inválidas (Contraseña incorrecta).' 
+            });
+        }
+
+        // 4. Generar Token JWT
+        const token = jwt.sign(
+            { userId: user._id, email: user.email, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        // 5. Respuesta con Token y Datos de Usuario
+        res.json({
+            ok: true,
+            msg: 'Inicio de sesión exitoso',
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error en login:', error);
+        res.status(500).json({ 
+            ok: false, 
+            msg: 'Error interno del servidor al iniciar sesión.' 
+        });
     }
-
-    // 1. Buscar usuario por ID (Simulamos búsqueda por email escaneando todo por ahora)
-    const users = User.findAll();
-    const user = users.find(u => u.email === email);
-
-    if (!user) {
-      console.log('❌ Usuario no encontrado en DB');
-      return res.status(401).json({ message: 'Credenciales inválidas' });
-    }
-
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) {
-      console.log('❌ Contraseña incorrecta');
-      return res.status(401).json({ message: 'Credenciales inválidas' });
-    }
-
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role || 'user' },
-      JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    res.json({
-      message: 'Login exitoso',
-      token,
-      user: { id: user.id, name: user.name, email: user.email }
-    });
-  } catch (error) {
-    console.error('Error en login:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error.message });
-  }
 });
 
-// RUTA PROTEGIDA: Obtener datos del usuario actual
-// Requiere header Authorization: Bearer <token>
-router.get('/me', verifyToken, (req, res) => {
-  // req.user viene del middleware verifyToken
-  const user = User.findById(req.user.userId);
-  
-  if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+/**
+ * @route   GET /api/auth/me
+ * @desc    Obtener datos del usuario autenticado
+ * @access  Private
+ */
+router.get('/me', verifyToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.userId).select('-password');
+        
+        if (!user) {
+            return res.status(404).json({ 
+                ok: false, 
+                msg: 'Usuario no encontrado.' 
+            });
+        }
+        
+        // NOTA: Se devuelve el objeto user directamente para mantener compatibilidad 
+        // con el frontend actual (auth.js espera el objeto user, no { data: user }).
+        res.json(user);
 
-  // Devolver todos los datos del perfil (excepto password)
-  res.json({ 
-    id: user.id, 
-    name: user.name, 
-    email: user.email,
-    phone: user.phone || '',
-    address: user.address || '',
-    document: user.document || ''
-  });
+    } catch (error) {
+        console.error('❌ Error obteniendo perfil:', error);
+        res.status(500).json({ 
+            ok: false, 
+            msg: 'Error interno del servidor al obtener perfil.' 
+        });
+    }
 });
 
-// RUTA PROTEGIDA: Actualizar datos del usuario (PUT /api/auth/update)
-router.put('/update', verifyToken, (req, res) => {
-  const { name, phone, address, document } = req.body;
-  
-  const updates = {};
-  if (name) updates.name = name;
-  if (phone) updates.phone = phone;
-  if (address) updates.address = address;
-  if (document) updates.document = document;
+/**
+ * @route   PUT /api/auth/update
+ * @desc    Actualizar datos del perfil
+ * @access  Private
+ */
+router.put('/update', verifyToken, async (req, res) => {
+    try {
+        const { name, phone, address } = req.body;
 
-  const updatedUser = User.updateById(req.user.userId, updates);
+        // Validación ligera
+        if (!name) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'El nombre es obligatorio.'
+            });
+        }
 
-  if (!updatedUser) return res.status(404).json({ message: 'Usuario no encontrado' });
+        const user = await User.findByIdAndUpdate(
+            req.user.userId, 
+            { name, phone, address }, 
+            { new: true, runValidators: true }
+        ).select('-password');
+        
+        if (!user) {
+            return res.status(404).json({ ok: false, msg: 'Usuario no encontrado.' });
+        }
 
-  res.json({ message: 'Perfil actualizado correctamente', user: updatedUser });
+        res.json({ 
+            ok: true, 
+            msg: 'Perfil actualizado correctamente.', 
+            user 
+        });
+
+    } catch (error) {
+        console.error('❌ Error actualizando perfil:', error);
+        res.status(500).json({ 
+            ok: false, 
+            msg: 'Error interno del servidor al actualizar perfil.' 
+        });
+    }
 });
 
 module.exports = router;

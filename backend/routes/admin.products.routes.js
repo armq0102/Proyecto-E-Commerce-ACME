@@ -1,144 +1,112 @@
 const { Router } = require('express');
-const { Product } = require('../db.js');
+const mongoose = require('mongoose');
+const Product = require('../Product.model');
 
 const router = Router();
 
-// GET /api/admin/products
-router.get('/', (req, res) => {
+const VALID_STATUS = ['active', 'hidden', 'out_of_stock'];
+
+// GET: Listar todos (Admin ve todo)
+router.get('/', async (req, res) => {
     try {
-        const products = Product.findAll();
+        const products = await Product.find({});
         res.json(products);
     } catch (error) {
-        console.error('Error admin products:', error);
-        res.status(500).json({ message: 'Error al obtener inventario' });
+        console.error('[ADMIN_PRODUCTS_GET]', error);
+        res.status(500).json({ msg: 'Error al obtener productos' });
     }
 });
 
-// POST /api/admin/products
-router.post('/', (req, res) => {
+// POST: Crear producto
+router.post('/', async (req, res) => {
     try {
-        const { name, price, stock, imageUrl, status } = req.body;
+        const { name, price, stock, imageUrl, status = 'active' } = req.body;
 
-        // Validaciones estrictas
-        if (!name || typeof name !== 'string') return res.status(400).json({ message: 'Nombre inválido' });
-        if (!imageUrl || typeof imageUrl !== 'string') return res.status(400).json({ message: 'Imagen inválida' });
-        if (price === undefined || price <= 0) return res.status(400).json({ message: 'Precio debe ser mayor a 0' });
-        if (stock === undefined || stock < 0) return res.status(400).json({ message: 'Stock no puede ser negativo' });
-
-        const allowedStatus = ['active', 'hidden', 'out_of_stock'];
-        if (status && !allowedStatus.includes(status)) {
-            return res.status(400).json({ message: 'Estado inválido' });
+        if (!name || price == null || stock == null) {
+            return res.status(400).json({ msg: 'Faltan campos obligatorios' });
         }
 
-        // Verificar duplicados por nombre (Case insensitive)
-        const products = Product.findAll();
-        const exists = products.some(p => p.title.toLowerCase() === name.trim().toLowerCase());
-        if (exists) return res.status(409).json({ message: 'El producto ya existe' });
+        if (typeof price !== 'number' || price < 0) {
+            return res.status(400).json({ msg: 'Precio inválido' });
+        }
 
-        const newProduct = {
-            // ID se genera automáticamente en db.js si no se envía
-            title: name.trim(),
-            price: Number(price),
-            stock: Number(stock),
+        if (!Number.isInteger(stock) || stock < 0) {
+            return res.status(400).json({ msg: 'Stock inválido' });
+        }
+
+        if (!VALID_STATUS.includes(status)) {
+            return res.status(400).json({ msg: 'Estado inválido' });
+        }
+
+        const newProduct = new Product({
+            title: name,
+            price,
+            stock,
             img: imageUrl,
-            status: (Number(stock) === 0) ? 'out_of_stock' : (status || 'active'),
-            createdAt: new Date().toISOString()
-        };
+            status
+        });
 
-        const created = Product.create(newProduct);
-        res.status(201).json({ message: 'Producto creado', product: created });
+        await newProduct.save();
+        res.status(201).json(newProduct);
 
     } catch (error) {
-        console.error('Error creando producto:', error);
-        res.status(500).json({ message: 'Error interno al crear producto' });
+        console.error('[ADMIN_PRODUCTS_POST]', error);
+        res.status(500).json({ msg: 'Error al crear producto' });
     }
 });
 
-// PUT /api/admin/products/:id (Edición completa)
-router.put('/:id', (req, res) => {
+// PUT: Editar producto
+router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
+
+        if (!mongoose.isValidObjectId(id)) {
+            return res.status(400).json({ msg: 'ID inválido' });
+        }
+
         const { name, price, stock, imageUrl, status } = req.body;
 
-        const product = Product.findById(id);
-        if (!product) return res.status(404).json({ message: 'Producto no encontrado' });
+        const updateData = {};
 
-        const updates = {};
-        if (name) updates.title = name;
-        if (price !== undefined) updates.price = Number(price);
-        if (stock !== undefined) updates.stock = Number(stock);
-        if (imageUrl) updates.img = imageUrl;
-        
-        // Lógica de estado automática
-        if (updates.stock === 0) {
-            updates.status = 'out_of_stock';
-        } else if (status) {
-            const allowedStatus = ['active', 'hidden', 'out_of_stock'];
-            if (allowedStatus.includes(status)) updates.status = status;
+        if (name) updateData.title = name;
+        if (price != null) {
+            if (typeof price !== 'number' || price < 0) {
+                return res.status(400).json({ msg: 'Precio inválido' });
+            }
+            updateData.price = price;
         }
 
-        const updatedProduct = Product.updateById(id, updates);
-        res.json({ message: 'Producto actualizado', product: updatedProduct });
+        if (stock != null) {
+            if (!Number.isInteger(stock) || stock < 0) {
+                return res.status(400).json({ msg: 'Stock inválido' });
+            }
+            updateData.stock = stock;
+        }
+
+        if (imageUrl) updateData.img = imageUrl;
+
+        if (status) {
+            if (!VALID_STATUS.includes(status)) {
+                return res.status(400).json({ msg: 'Estado inválido' });
+            }
+            updateData.status = status;
+        }
+
+        const updated = await Product.findByIdAndUpdate(
+            id,
+            updateData,
+            { new: true }
+        );
+
+        if (!updated) {
+            return res.status(404).json({ msg: 'Producto no encontrado' });
+        }
+
+        res.json(updated);
 
     } catch (error) {
-        console.error('Error editando producto:', error);
-        res.status(500).json({ message: 'Error interno al editar producto' });
-    }
-});
-
-// PATCH /api/admin/products/:id/status (Cambio rápido de estado)
-router.patch('/:id/status', (req, res) => {
-    try {
-        const { id } = req.params;
-        const { status } = req.body;
-
-        // Validación estricta de estado (Recomendación Senior)
-        const allowedStatus = ['active', 'hidden', 'out_of_stock'];
-        if (!status || !allowedStatus.includes(status)) {
-            return res.status(400).json({ 
-                message: `Estado inválido. Permitidos: ${allowedStatus.join(', ')}` 
-            });
-        }
-        
-        const product = Product.findById(id);
-        if (!product) return res.status(404).json({ message: 'Producto no encontrado' });
-
-        const updated = Product.updateById(id, { status });
-        res.json({ message: 'Estado actualizado', product: updated });
-    } catch (error) {
-        res.status(500).json({ message: 'Error al cambiar estado' });
-    }
-});
-
-// PATCH /api/admin/products/:id (Actualización rápida de stock)
-// Nota: Esta ruta maneja el stock absoluto, no delta.
-router.patch('/:id', (req, res) => {
-    try {
-        const { id } = req.params;
-        const { stock } = req.body;
-
-        if (stock === undefined || !Number.isInteger(stock) || stock < 0) {
-            return res.status(400).json({ message: 'Stock inválido' });
-        }
-
-        const product = Product.findById(id);
-        if (!product) return res.status(404).json({ message: 'Producto no encontrado' });
-
-        const updates = { 
-            stock: stock,
-            updatedAt: new Date().toISOString()
-        };
-        
-        // Si el stock sube de 0, reactivamos si estaba out_of_stock
-        if (stock > 0 && product.status === 'out_of_stock') {
-            updates.status = 'active';
-        }
-
-        const updated = Product.updateById(id, updates);
-        res.json({ message: 'Stock actualizado', product: updated });
-
-    } catch (error) {
-        res.status(500).json({ message: 'Error interno al actualizar stock' });
+        console.error('[ADMIN_PRODUCTS_PUT]', error);
+        res.status(500).json({ msg: 'Error al actualizar producto' });
     }
 });
 

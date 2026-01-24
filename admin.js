@@ -285,7 +285,7 @@ document.getElementById('confirmStatusBtn').addEventListener('click', async (e) 
     e.preventDefault(); // Prevenir recarga de página para mantener la vista en la sección de Pedidos
     const newStatus = document.getElementById('newStatusSelect').value;
     setLoading(true);
-    const response = await fetchAdmin(`/orders/${currentOrderToEdit}`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) });
+    const response = await fetchAdmin(`/orders/${currentOrderToEdit}/status`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) });
     if (response && response.ok) { closeModal('statusModal'); AdminUI.orders.load(); showToast('Estado actualizado', 'success'); } // Refrescar solo la tabla
     else { showToast('Error al actualizar', 'error'); }
     setLoading(false);
