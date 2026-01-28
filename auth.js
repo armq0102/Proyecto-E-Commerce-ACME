@@ -2,8 +2,11 @@
 // Lógica de autenticación profesional conectada al Backend
 
 document.addEventListener('DOMContentLoaded', () => {
-    const API_AUTH_URL = 'http://localhost:3000/api/auth';
-    const API_ORDERS_URL = 'http://localhost:3000/api/orders';
+    const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:3000/api'
+        : '/api';
+    const API_AUTH_URL = `${API_URL}/auth`;
+    const API_ORDERS_URL = `${API_URL}/orders`;
     
     // --- UTILIDADES GLOBALES (Para evitar errores con onclick en HTML) ---
     if (!window.openModal) {

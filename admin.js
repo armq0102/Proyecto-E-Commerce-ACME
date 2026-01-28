@@ -1,5 +1,7 @@
 // --- CONFIGURATION ---
-const API_URL = 'http://localhost:3000/api';
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3000/api'
+    : '/api';
 
 // --- STATE ---
 let currentProductToEdit = null;
@@ -301,10 +303,22 @@ async function toggleUserStatus(userId, currentStatus) {
     });
 
     if (response && response.ok) {
-        showToast('Estado del usuario actualizado.', 'success');
+        const result = await response.json();
+        showToast(result.msg || 'Estado del usuario actualizado.', 'success');
         AdminUI.users.load();
     } else {
-        showToast('Error al actualizar el estado del usuario.', 'error');
+        let errorMessage = 'Error al actualizar el estado del usuario.';
+        if (response) {
+            try {
+                const errorData = await response.json();
+                if (errorData && errorData.msg) {
+                    errorMessage = errorData.msg;
+                }
+            } catch (e) {
+                // Si no hay JSON, se usa el mensaje por defecto
+            }
+        }
+        showToast(errorMessage, 'error');
     }
     setLoading(false);
 }
@@ -372,8 +386,23 @@ document.getElementById('confirmStatusBtn').addEventListener('click', async (e) 
     const newStatus = document.getElementById('newStatusSelect').value;
     setLoading(true);
     const response = await fetchAdmin(`/orders/${currentOrderToEdit}/status`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) });
-    if (response && response.ok) { closeModal('statusModal'); AdminUI.orders.load(); showToast('Estado actualizado', 'success'); } // Refrescar solo la tabla
-    else { showToast('Error al actualizar', 'error'); }
+    if (response && response.ok) { 
+        closeModal('statusModal'); 
+        AdminUI.orders.load(); 
+        showToast('Estado actualizado', 'success'); 
+    } else { 
+        let errorMessage = 'Error al actualizar';
+        if (response) {
+            try {
+                // Intentar leer el mensaje de error específico del backend
+                const errorData = await response.json();
+                if (errorData && errorData.msg) errorMessage = errorData.msg;
+            } catch (e) {
+                // Si la respuesta no es JSON, usar el mensaje genérico
+            }
+        }
+        showToast(errorMessage, 'error'); 
+    }
     setLoading(false);
 });
 

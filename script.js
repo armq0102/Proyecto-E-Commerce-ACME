@@ -1,5 +1,10 @@
 // script.js - Lógica principal del frontend (Carrito y Productos)
 
+// --- CONFIGURACIÓN DE ENTORNO ---
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3000/api'
+    : '/api'; // URL relativa para producción
+
 // Base de datos de productos (Coincide con los IDs de tus HTMLs)
 let PRODUCTS = []; // Ahora vacío, se llena desde el backend
 
@@ -30,7 +35,7 @@ function showToast(message, type = 'info') {
 // --- SINCRONIZACIÓN CON BACKEND ---
 async function syncProducts() {
     try {
-        const response = await fetch('http://localhost:3000/api/products');
+        const response = await fetch(`${API_URL}/products`);
         if (response.ok) {
             PRODUCTS = await response.json(); // Reemplazo total con datos reales de Mongo
             console.log('✅ Productos cargados desde Backend:', PRODUCTS.length);
@@ -327,43 +332,39 @@ window.handleCheckout = async function() {
         return;
     }
 
-    const total = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-
     try {
-        // Petición al Backend
-        const response = await fetch('http://localhost:3000/api/orders', {
+        // 1. Solicitar Transacción Wompi al Backend
+        showToast('Redirigiendo a Wompi...', 'info');
+        
+        const response = await fetch(`${API_URL}/payments/create-transaction`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({
+            body: JSON.stringify({ 
                 items: cart,
-                total: total
+                redirectUrl: window.location.origin + '/profile.html#pedidos'
             })
         });
 
-        if (response.ok) {
-            showToast('¡Pedido realizado con éxito!', 'success');
-            localStorage.removeItem('acme_cart'); // Limpiar carrito
-            updateCartUI();
-            closeCartDrawer();
-            
-            // Opcional: Abrir historial de pedidos
-            const myOrdersBtn = document.getElementById('menuMyOrders');
-            if(myOrdersBtn) myOrdersBtn.click();
-            
-        } else {
-            const errorData = await response.json();
-            showToast(`Error: ${errorData.message}`, 'error');
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.msg || 'Error al iniciar pago');
         }
+
+        // 2. Redirigir a Wompi Checkout
+        if (data.redirectUrl) {
+            localStorage.removeItem('acme_cart'); // Limpiamos carrito preventivamente
+            window.location.href = data.redirectUrl;
+        }
+
     } catch (error) {
-        console.error('Error en checkout:', error);
-        showToast('Error de conexión al procesar pedido.', 'error');
+        console.error('Error checkout:', error);
+        showToast(error.message, 'error');
     }
 };
-
-// --- INICIALIZACIÓN AL CARGAR LA PÁGINA ---
 
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Cargar estado del carrito

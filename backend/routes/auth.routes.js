@@ -27,11 +27,8 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // Determinar el rol. Si es un correo específico, será admin.
-        const role = (email === 'admin@acme.com') ? 'admin' : 'user';
-
         // 2. Crear y guardar usuario (El hash se maneja en el modelo User)
-        const user = new User({ name, email, password, role });
+        const user = new User({ name, email, password, role: 'user' });
         await user.save();
 
         // 3. Respuesta exitosa
@@ -84,10 +81,10 @@ router.post('/login', async (req, res) => {
         }
 
         // NUEVA VALIDACIÓN: Verificar si el usuario está suspendido
-        if (user.status === 'suspended') {
+        if (user.status && user.status !== 'active') {
             return res.status(403).json({
                 ok: false,
-                msg: 'Tu cuenta ha sido suspendida. Por favor, contacta a soporte.'
+                msg: 'Tu cuenta está suspendida. Contacta al administrador.'
             });
         }
 
