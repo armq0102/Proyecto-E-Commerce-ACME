@@ -5,9 +5,6 @@ const API_URL = window.location.hostname === 'localhost' || window.location.host
     ? 'http://localhost:3000/api'
     : '/api'; // URL relativa para producción
 
-// Tasa de cambio (temporal hasta que los precios en DB estén en COP)
-const USD_TO_COP = 5200;
-
 // Base de datos de productos (Coincide con los IDs de tus HTMLs)
 let PRODUCTS = []; // Ahora vacío, se llena desde el backend
 
@@ -72,7 +69,7 @@ function renderFeaturedProducts() {
                 ${isOutOfStock ? '<span class="badge-out-of-stock">Agotado</span>' : ''}
                 <img src="${p.img}" alt="${p.title}">
                 <h3>${p.title}</h3>
-                <p class="price">${formatCOP(p.price * USD_TO_COP)}</p>
+                <p class="price">${formatCOP(p.price)}</p>
                 ${isLowStock ? `<p style="color:var(--acme-red, #cc0000);font-weight:bold;font-size:0.85rem;margin-bottom:5px;">¡Solo quedan ${p.stock}!</p>` : ''}
                 <button class="btn btn-dark add-to-cart"
                         data-id="${p.id}"
@@ -117,7 +114,7 @@ function updateCategoryPagesUI() {
             // --- MEJORA: Actualizar el precio dinámicamente ---
             const priceEl = card.querySelector('p.price');
             if (priceEl) {
-                priceEl.textContent = formatCOP(product.price * USD_TO_COP);
+                priceEl.textContent = formatCOP(product.price);
             }
             // ---------------------------------------------------
             
@@ -286,7 +283,7 @@ function updateCartUI() {
                     <img src="${item.img}" alt="${item.title}">
                     <div class="meta">
                         <div class="title">${item.title}</div>
-                        <div class="price">${formatCOP(item.price * USD_TO_COP)}</div>
+                        <div class="price">${formatCOP(item.price)}</div>
                         <div class="qty-controls">
                             <button class="qty-btn" onclick="changeQty('${item.id}', -1)">-</button>
                             <span class="qty-display">${item.qty}</span>
@@ -296,7 +293,7 @@ function updateCartUI() {
                     <button class="remove-item" onclick="removeFromCart('${item.id}')" aria-label="Eliminar">×</button>
                 </div>
             `).join('');
-            drawerTotal.textContent = `Total: ${formatCOP(total * USD_TO_COP)}`;
+            drawerTotal.textContent = `Total: ${formatCOP(total)}`;
         }
     }
     
@@ -305,7 +302,7 @@ function updateCartUI() {
     if (modalContent) {
         modalContent.textContent = cart.length === 0 
             ? 'Tu carrito está vacío.' 
-            : `Tienes ${count} productos. Total: ${formatCOP(total * USD_TO_COP)}`;
+            : `Tienes ${count} productos. Total: ${formatCOP(total)}`;
     }
 }
 
@@ -361,8 +358,7 @@ window.handleCheckout = async function() {
 
         const endpoint = `${API_URL}/payments/create-transaction`;
         const payload = { 
-            items: cart,
-            redirectUrl: window.location.origin + '/profile.html#pedidos'
+            items: cart
         };
 
         console.log('Enviando solicitud a:', endpoint);

@@ -3,12 +3,6 @@ const PaymentSession = require('../PaymentSession.model');
 const wompiService = require('../wompi.service');
 const { URL } = require('url');
 
-// Tasa de cambio (temporal hasta que los precios en DB estén en COP)
-const USD_TO_COP = 5200;
-
-// Lista blanca de dominios permitidos para redirectUrl
-const ALLOWED_DOMAINS = ['https://acme.com', 'http://localhost:5500', 'http://127.0.0.1:5500', 'http://localhost:3000'];
-
 const createTransaction = async (req, res) => {
     try {
         // 1️⃣ Validación de entorno
@@ -32,24 +26,22 @@ const createTransaction = async (req, res) => {
                 .json({ ok: false, msg: 'Error interno de configuración de pagos.' });
         }
 
-        const { items, redirectUrl } = req.body;
+        const { items } = req.body;
 
         // 2️⃣ Validación básica de carrito
         if (!items || !Array.isArray(items) || items.length === 0) {
             return res.status(400).json({ ok: false, msg: 'El carrito está vacío.' });
         }
 
-        // 3️⃣ Validación de redirectUrl
-        let redirect;
-        try {
-            redirect = new URL(redirectUrl);
-            // Permitir localhost y dominios de producción
-            const origin = `${redirect.protocol}//${redirect.host}`;
-            // En desarrollo, a veces es útil ser permisivo o agregar el dominio a la lista
-            // if (!ALLOWED_DOMAINS.includes(origin)) { ... }
-        } catch {
-            redirect = new URL('http://localhost:5500');
-        }
+        // 3️⃣ Definición de URL de redirección fija (Seguridad Máxima)
+        // FIX: Para pruebas locales, Wompi necesita una URL pública.
+        // Usamos una URL genérica para desarrollo y la real para producción.
+        const redirectUrl =
+            process.env.NODE_ENV === 'production'
+                ? `${process.env.FRONTEND_URL}/profile.html#pedidos`
+                : 'https://www.google.com'; // URL pública para que Wompi no falle
+
+        const redirect = new URL(redirectUrl);
 
         // 4️⃣ Validación de productos
         const sessionItems = [];
@@ -91,9 +83,7 @@ const createTransaction = async (req, res) => {
         }
 
         // 5️⃣ Generar referencia y signature
-        // Convertir el total de USD a COP para Wompi
-        const totalAmountCOP = totalAmount * USD_TO_COP;
-        const amountInCents = Math.round(totalAmountCOP * 100);
+        const amountInCents = Math.round(totalAmount * 100);
         const currency = 'COP';
         const reference = `ORDER-${req.user.userId}-${Date.now()}`;
 
@@ -105,13 +95,13 @@ const createTransaction = async (req, res) => {
         );
 
         // 6️⃣ Crear PaymentSession
-        // Se guarda el total en USD para mantener consistencia en la DB
         await PaymentSession.create({
             reference,
             userId: req.user.userId,
             items: sessionItems,
             total: totalAmount,
-            currency
+            currency,
+            amountInCents // Persistencia obligatoria para validación en webhook
         });
 
         // 7️⃣ Construir URL de Wompi seguro
@@ -126,7 +116,8 @@ const createTransaction = async (req, res) => {
 
         const wompiUrl = `https://checkout.wompi.co/p/?${params.toString()}`;
 
-        console.log(`💳 Sesión Wompi creada: ${reference} - Total: ${totalAmount} COP`);
+        console.log(`💳 Sesión Wompi creada: ${reference} - Total: ${totalAmount} COP (${amountInCents} centavos)`);
+        console.info('[Payment] Redirect usado:', redirect.toString());
 
         return res.status(200).json({ ok: true, redirectUrl: wompiUrl, reference });
     } catch (error) {

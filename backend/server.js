@@ -2,23 +2,43 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose');
 const connectDB = require('./mongo');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // --- MIDDLEWARES GLOBALES ---
 
-// 🔌 Conectar a Mongo ANTES de levantar el server
-connectDB();
+const allowedOrigins = [
+  'http://localhost:5500',
+  'http://127.0.0.1:5500',
+  process.env.FRONTEND_URL
+].filter(Boolean);
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  optionsSuccessStatus: 200
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
 }));
 
 // Seguridad básica contra payloads grandes
 app.use(express.json({ limit: '1mb' }));
+
+// Rate Limiting para Auth (Protección contra fuerza bruta)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 10, // Limita a 10 peticiones por IP
+  message: 'Demasiados intentos de inicio de sesión, por favor intente nuevamente en 15 minutos.'
+});
+app.use('/api/auth/', authLimiter);
 
 // --- RUTAS ---
 app.use('/api/auth', require('./routes/auth.routes.js'));
@@ -49,7 +69,15 @@ app.use((err, req, res, next) => {
 });
 
 // --- INICIO DEL SERVIDOR ---
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor escuchando en http://localhost:${PORT}`);
-  console.log(`🔧 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-});
+// 🔌 Conectar a Mongo y LUEGO levantar el server para asegurar consistencia.
+// Esto soluciona la "race condition" que mostraba la base de datos como 'undefined'.
+const startServer = async () => {
+  await connectDB();
+  app.listen(PORT, () => {
+    console.log(`🚀 Servidor escuchando en http://localhost:${PORT}`);
+    console.log(`🔧 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`💾 Base de datos activa: ${mongoose.connection.name}`);
+  });
+};
+
+startServer();

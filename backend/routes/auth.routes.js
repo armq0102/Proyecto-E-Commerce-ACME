@@ -27,7 +27,8 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // 2. Crear y guardar usuario (El hash se maneja en el modelo User)
+        // 2. Crear y guardar usuario
+        // El Schema (User.model.js) se encarga automáticamente de hacer trim() y lowercase()
         const user = new User({ name, email, password, role: 'user' });
         await user.save();
 
@@ -71,8 +72,10 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // 2. Buscar usuario
-        const user = await User.findOne({ email });
+        // 2. Buscar usuario (Normalizado para evitar errores de Case Sensitive)
+        const normalizedEmail = email.toLowerCase().trim();
+
+        const user = await User.findOne({ email: normalizedEmail });
         if (!user) {
             return res.status(400).json({ 
                 ok: false, 

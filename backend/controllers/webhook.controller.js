@@ -4,15 +4,12 @@ const Product = require('../Product.model');
 const PaymentSession = require('../PaymentSession.model');
 const wompiService = require('../wompi.service');
 
-// Tasa de cambio (temporal hasta que los precios en DB estén en COP)
-const USD_TO_COP = 5200;
-
 const handleWompiWebhook = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { data, signature, timestamp } = req.body || {};
+    const { data, signature, timestamp, test } = req.body || {};
 
     // 1️⃣ Validación básica del payload
     if (!data || !data.transaction || !signature || !timestamp) {
@@ -33,14 +30,21 @@ const handleWompiWebhook = async (req, res) => {
       return res.status(500).json({ ok: false, msg: 'Error de configuración' });
     }
 
-    const isValid = wompiService.verifyWebhookSignature(
-      signature.checksum,
-      transaction.id,
-      transaction.status,
-      transaction.amount_in_cents,
-      timestamp,
-      secret
-    );
+    // FIX: Permitir bypass de firma para pruebas locales manuales
+    let isValid;
+    if (test === true && process.env.NODE_ENV !== 'production') {
+        console.log('[Webhook] ⚠️ MODO TEST: Saltando verificación de firma para simulación local.');
+        isValid = true;
+    } else {
+        isValid = wompiService.verifyWebhookSignature(
+            signature.checksum,
+            transaction.id,
+            transaction.status,
+            transaction.amount_in_cents,
+            timestamp,
+            secret
+        );
+    }
 
     if (!isValid) {
       console.warn(`[Webhook] Firma inválida para transacción ${transaction.id}`);
@@ -68,8 +72,13 @@ const handleWompiWebhook = async (req, res) => {
     }
 
     // 6️⃣ Validación de integridad financiera
-    // Convertir el total de la sesión (guardado en USD) a centavos de COP para comparar
-    const sessionAmountInCents = Math.round((paymentSession.total * USD_TO_COP) * 100);
+    if (!paymentSession.amountInCents) {
+      console.error(`[Webhook] Error crítico: amountInCents no existe en sesión ${transaction.reference}`);
+      return res.status(200).json({ ok: false, msg: 'Error de integridad en sesión' });
+    }
+
+    const sessionAmountInCents = paymentSession.amountInCents;
+
     if (transaction.currency !== 'COP') {
       console.error(`[Webhook] Moneda inválida: ${transaction.currency}`);
       return res.status(200).json({ ok: false, msg: 'Moneda incorrecta' });
@@ -122,6 +131,7 @@ const handleWompiWebhook = async (req, res) => {
     session.endSession();
 
     console.log(`[Webhook] Orden creada exitosamente: ${newOrder._id}`);
+    console.info('[Webhook] Pago confirmado:', transaction.reference);
     return res.status(200).json({ ok: true, msg: 'Orden creada exitosamente' });
   } catch (error) {
     await session.abortTransaction();
