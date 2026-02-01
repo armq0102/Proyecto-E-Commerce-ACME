@@ -8,26 +8,17 @@ const crypto = require('crypto');
 
 const createTransaction = async (req, res) => {
     try {
-        // 1️⃣ Validación de entorno
-        const envKeys =
-            process.env.NODE_ENV === 'production'
-                ? {
-                      publicKey: process.env.WOMPI_PUBLIC_KEY,
-                      integritySecret: process.env.WOMPI_INTEGRITY_SECRET
-                  }
-                : {
-                      publicKey: process.env.WOMPI_PUBLIC_KEY_TEST,
-                      integritySecret: process.env.WOMPI_INTEGRITY_SECRET_TEST
-                  };
+        // 1️⃣ Validación de entorno y llaves (Lógica Robusta)
+        // Intentamos usar las llaves principales, si no existen, usamos las de test como fallback.
+        const publicKey = process.env.WOMPI_PUBLIC_KEY || process.env.WOMPI_PUBLIC_KEY_TEST;
+        const integritySecret = process.env.WOMPI_INTEGRITY_SECRET || process.env.WOMPI_INTEGRITY_SECRET_TEST;
 
-        if (!envKeys.publicKey || !envKeys.integritySecret) {
-            console.error(
-                '❌ Faltan variables de entorno de Wompi para el entorno actual'
-            );
-            return res
-                .status(500)
-                .json({ ok: false, msg: 'Error interno de configuración de pagos.' });
+        if (!publicKey || !integritySecret) {
+            console.error('❌ Faltan variables de entorno de Wompi (Public Key o Integrity Secret).');
+            return res.status(500).json({ ok: false, msg: 'Error interno de configuración de pagos.' });
         }
+        
+        const envKeys = { publicKey, integritySecret };
 
         const { items } = req.body || {};
 
@@ -155,9 +146,7 @@ const handleWebhook = async (req, res) => {
         
         // 2. Validar Firma de Integridad (SEGURIDAD CRÍTICA)
         // Wompi firma: SHA256(transaction.id + transaction.status + transaction.amount_in_cents + timestamp + secret)
-        const integritySecret = process.env.NODE_ENV === 'production' 
-            ? process.env.WOMPI_INTEGRITY_SECRET 
-            : process.env.WOMPI_INTEGRITY_SECRET_TEST;
+        const integritySecret = process.env.WOMPI_INTEGRITY_SECRET || process.env.WOMPI_INTEGRITY_SECRET_TEST;
 
         const chain = `${transaction.id}${transaction.status}${transaction.amount_in_cents}${timestamp}${integritySecret}`;
         const calculatedSignature = crypto.createHash('sha256').update(chain).digest('hex');
