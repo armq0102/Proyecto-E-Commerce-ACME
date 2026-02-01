@@ -49,6 +49,16 @@ const createTransaction = async (req, res) => {
 
         for (const item of items) {
             const productId = item._id || item.id;
+            
+            // FIX: Validar que el ID sea un ObjectId válido de MongoDB
+            // Esto evita que el servidor falle (500) si hay IDs antiguos como "p1" en el carrito
+            if (!mongoose.isValidObjectId(productId)) {
+                return res.status(400).json({ 
+                    ok: false, 
+                    msg: 'Tu carrito tiene datos antiguos. Por favor vacíalo e intenta de nuevo.' 
+                });
+            }
+
             const product = await Product.findById(productId);
 
             const qty = parseInt(item.qty);
@@ -84,11 +94,18 @@ const createTransaction = async (req, res) => {
         // 5️⃣ CREAR ORDEN (ESTADO: PENDIENTE) - "Source of Truth"
         // La orden existe ANTES de pagar.
         const user = await User.findById(req.user.userId);
+        
+        // FIX: Asegurar dirección válida (mínimo 10 caracteres) para evitar error de validación de Mongoose
+        const userAddress = user ? user.address : '';
+        const shippingAddress = (userAddress && userAddress.length >= 10) 
+            ? userAddress 
+            : 'Dirección no disponible (Recoger en tienda)';
+
         const newOrder = new Order({
             userId: req.user.userId,
             items: sessionItems,
             total: totalAmount,
-            shippingAddress: user ? user.address : 'Dirección no disponible',
+            shippingAddress: shippingAddress,
             status: 'Pendiente', // Estado inicial
             statusHistory: [{ status: 'Pendiente', note: 'Iniciando pago Wompi', date: new Date() }]
         });
@@ -137,7 +154,8 @@ const createTransaction = async (req, res) => {
         console.error('Error al iniciar pago Wompi', error);
         return res.status(500).json({
             ok: false,
-            msg: 'Error al iniciar pago con Wompi.'
+            msg: 'Error al iniciar pago con Wompi.',
+            error: error.message // Para ver el error real en consola (ej: validación fallida)
         });
     }
 };
