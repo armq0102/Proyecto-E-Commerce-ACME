@@ -9,6 +9,9 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Confiar en el proxy de Render (Necesario para que el Rate Limit funcione con la IP real del usuario)
+app.set('trust proxy', 1);
+
 // --- MIDDLEWARES GLOBALES ---
 
 const allowedOrigins = [
@@ -36,7 +39,7 @@ app.use(express.json({ limit: '1mb' }));
 // Rate Limiting para Auth (Protección contra fuerza bruta)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 10, // Limita a 10 peticiones por IP
+  max: 100, // Aumentado a 100 para evitar bloqueos durante pruebas
   message: 'Demasiados intentos de inicio de sesión, por favor intente nuevamente en 15 minutos.'
 });
 app.use('/api/auth/', authLimiter);
