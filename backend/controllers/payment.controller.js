@@ -27,11 +27,20 @@ const createTransaction = async (req, res) => {
             return res.status(400).json({ ok: false, msg: 'El carrito está vacío.' });
         }
 
-        const redirectUrl =
-            process.env.NODE_ENV === 'production'
-                ? `${process.env.FRONTEND_URL}/profile.html#pedidos`
-                : 'http://localhost:5500/profile.html#pedidos'; // En dev local, Wompi redirige al localhost del usuario
+        // 3️⃣ Definir URL de redirección (Sanitizada)
+        let frontendUrl = process.env.NODE_ENV === 'production'
+            ? process.env.FRONTEND_URL
+            : 'http://localhost:5500';
 
+        // Validación de seguridad: Si es '*' o no existe, fallar antes de ir a Wompi
+        if (!frontendUrl || frontendUrl === '*') {
+            console.error('❌ FRONTEND_URL inválida para redirección:', frontendUrl);
+            return res.status(500).json({ ok: false, msg: 'Configuración de URL inválida en el servidor (FRONTEND_URL).' });
+        }
+
+        // Eliminar slash final si existe para evitar dobles slashes (ej: .com//profile)
+        frontendUrl = frontendUrl.replace(/\/$/, '');
+        const redirectUrl = `${frontendUrl}/profile.html#pedidos`;
 
         // 4️⃣ Validación de productos
         const sessionItems = [];

@@ -130,6 +130,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Limpieza estética: Quitar parámetros de Wompi de la URL (id, env) sin recargar
+        if (window.history.replaceState && window.location.search) {
+            const cleanUrl = window.location.pathname + window.location.hash;
+            window.history.replaceState(null, '', cleanUrl);
+        }
+
         // 1. Cargar Datos del Usuario
         try {
             const res = await fetch(`${API_AUTH_URL}/me`, { headers: { 'Authorization': `Bearer ${token}` }});
