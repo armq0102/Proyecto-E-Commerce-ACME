@@ -506,4 +506,20 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+
+    // --- Cerrar modales y carrito con tecla ESC ---
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            // Cerrar todos los modales abiertos
+            document.querySelectorAll('.modal:not(.hidden)').forEach(modal => {
+                window.closeModal(modal);
+            });
+            
+            // Cerrar carrito si está abierto
+            const cartDrawer = document.getElementById('cartDrawer');
+            if (cartDrawer && !cartDrawer.classList.contains('hidden')) {
+                window.closeModal(cartDrawer);
+            }
+        }
+    });
 });
