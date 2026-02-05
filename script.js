@@ -77,7 +77,7 @@ function renderFeaturedProducts() {
     const featuredContainer = document.getElementById('featuredProducts');
     if (featuredContainer) {
         // Filtramos los ocultos antes de mostrar
-        const featured = PRODUCTS.filter(p => p.status !== 'hidden').slice(0, 3);
+        const featured = PRODUCTS.filter(p => p.status !== 'hidden').slice(0, 6);
         featuredContainer.innerHTML = featured.map(p => {
             const productId = p.id || p._id;
             const isOutOfStock = (p.stock !== undefined && p.stock <= 0) || p.status === 'out_of_stock';
