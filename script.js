@@ -88,13 +88,20 @@ function renderFeaturedProducts() {
                 return normalizedCategory === normalizedTarget && p.status !== 'hidden';
             });
             
+            console.log(`${category}: ${categoryProducts.length} productos`);
+            
             if (categoryProducts.length > 0) {
                 const randomProduct = categoryProducts[Math.floor(Math.random() * categoryProducts.length)];
                 featured.push(randomProduct);
             }
         });
         
-        featuredContainer.innerHTML = featured.map(p => {
+        // Agregar transición fade
+        featuredContainer.style.opacity = '0';
+        featuredContainer.style.transition = 'opacity 0.6s ease-in-out';
+        
+        setTimeout(() => {
+            featuredContainer.innerHTML = featured.map(p => {
             const productId = p.id || p._id;
             const isOutOfStock = (p.stock !== undefined && p.stock <= 0) || p.status === 'out_of_stock';
             const isLowStock = !isOutOfStock && p.stock !== undefined && p.stock > 0 && p.stock < 10;
@@ -141,8 +148,14 @@ function renderFeaturedProducts() {
                         ${isOutOfStock ? 'Agotado' : 'Agregar al carrito'}
                     </button>
                 </div>
-            </article>
+            setTimeout(() => renderFeaturedProducts(), 10000);
         `}).join('');
+            
+            // Fade in después de actualizar
+            setTimeout(() => {
+                featuredContainer.style.opacity = '1';
+            }, 50);
+        }, 300);
         
         // Rotar productos cada 8 segundos si estamos en la página de inicio
         if (featuredContainer && document.body.classList.contains('page-index')) {
