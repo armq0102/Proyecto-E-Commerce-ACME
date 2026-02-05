@@ -1,7 +1,7 @@
 // script.js - Lógica principal del frontend (Carrito y Productos)
 
 // --- CONFIGURACIÓN DE ENTORNO ---
-const API_URL = 'https://proyecto-e-commerce-acme.onrender.com/api';
+const API_URL = 'https://priyecto-e-comerce-acme.onrender.com/api';
 const API_BASE_URL = API_URL.replace(/\/api\/?$/, '');
 
 function resolveImageUrl(img) {
