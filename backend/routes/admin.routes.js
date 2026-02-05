@@ -79,13 +79,14 @@ router.get('/products', async (req, res) => {
 router.post('/products', async (req, res) => {
     try {
         // CORRECCIÓN: Mapear 'name' -> 'title' y 'imageUrl' -> 'img'
-        const { name, price, stock, imageUrl, status } = req.body;
+        const { name, price, stock, imageUrl, status, category } = req.body;
         
         const newProduct = new Product({
             title: name,
             price,
             stock,
             img: imageUrl,
+            category: category || 'Otros',
             status: status || 'active'
         });
 
@@ -101,7 +102,7 @@ router.post('/products', async (req, res) => {
 router.put('/products/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, price, stock, imageUrl, status } = req.body;
+        const { name, price, stock, imageUrl, status, category } = req.body;
 
         // CORRECCIÓN: Construir objeto explícito para asegurar que 'status' entra
         // y que los nombres de campos coinciden con el Schema.
@@ -110,6 +111,7 @@ router.put('/products/:id', async (req, res) => {
             price,
             stock,
             img: imageUrl,     // Frontend envía 'imageUrl', DB usa 'img'
+            category,
             status             // Aseguramos que el estado se actualice
         };
 

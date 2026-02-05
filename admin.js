@@ -356,6 +356,7 @@ function openProductModal(product) {
         document.getElementById('prodImage').value = ''; // Limpiar input file
         document.getElementById('prodImage').setAttribute('data-current-img', product.img);
         document.getElementById('prodImageUrl').value = '';
+        document.getElementById('prodCategory').value = product.category || 'Otros';
         document.getElementById('prodStatus').value = product.status || 'active';
         prodImageInput.required = false; // No requerido al editar
     } else {
@@ -363,6 +364,7 @@ function openProductModal(product) {
         currentProductToEdit = null;
         modalTitle.textContent = 'Nuevo Producto';
         document.getElementById('productForm').reset();
+        document.getElementById('prodCategory').value = 'Hombres';
         document.getElementById('prodStatus').value = 'active';
         prodImageInput.required = true; // Requerido al crear
         document.getElementById('prodImage').removeAttribute('data-current-img');
@@ -447,6 +449,7 @@ async function saveProduct(imageUrl) {
         price: parseFloat(document.getElementById('prodPrice').value),
         stock: parseInt(document.getElementById('prodStock').value),
         imageUrl: imageUrl,
+        category: document.getElementById('prodCategory').value,
         status: document.getElementById('prodStatus').value
     };
 

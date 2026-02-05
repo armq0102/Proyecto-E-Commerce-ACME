@@ -198,6 +198,43 @@ function updateCategoryPagesUI() {
     });
 }
 
+function getCategoryFromPath() {
+    const file = (window.location.pathname.split('/').pop() || '').toLowerCase();
+    if (file.includes('hombres')) return 'Hombres';
+    if (file.includes('mujeres')) return 'Mujeres';
+    if (file.includes('accesorios')) return 'Accesorios';
+    if (file.includes('sostenibilidad')) return 'Sostenibilidad';
+    return null;
+}
+
+function renderCategoryPageProducts() {
+    const grid = document.querySelector('.products-grid');
+    if (!grid) return;
+
+    const category = getCategoryFromPath();
+    if (!category) return;
+
+    const items = PRODUCTS.filter(p => {
+        const cat = p.category || 'Otros';
+        return cat.toLowerCase() === category.toLowerCase() && p.status !== 'hidden';
+    });
+
+    if (!items.length) return;
+
+    grid.innerHTML = items.map(p => {
+        const productId = p.id || p._id;
+        const isOutOfStock = (p.stock !== undefined && p.stock <= 0) || p.status === 'out_of_stock';
+        return `
+        <article class="product-card">
+            <img src="${resolveImageUrl(p.img)}" alt="${p.title}">
+            <h3>${p.title}</h3>
+            <p class="price">${formatCOP(p.price)}</p>
+            <p><button class="btn btn-dark add-to-cart" data-id="${productId}" ${isOutOfStock ? 'disabled' : ''}>${isOutOfStock ? 'Agotado' : 'Agregar al carrito'}</button></p>
+        </article>
+        `;
+    }).join('');
+}
+
 // --- GESTIÓN DEL CARRITO ---
 
 // Obtener carrito desde LocalStorage
@@ -476,6 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sincronizar con backend y luego renderizar
     syncProducts().then(() => {
         renderFeaturedProducts();
+        renderCategoryPageProducts();
         updateCategoryPagesUI();
     });
     
