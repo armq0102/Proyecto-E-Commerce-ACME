@@ -85,13 +85,14 @@ function renderFeaturedProducts() {
             const brand = (p.brand || 'ACME').toUpperCase();
             const discount = getDiscountInfo(p);
             const discountClass = discount.percent ? '' : 'is-hidden';
+            const categoryDisplay = (p.category || 'Otros').toLowerCase() === 'accesorios' ? 'Niños' : (p.category || 'Otros');
             
             // Tag de categoría
-            const categoryTag = p.category || 'Otros';
+            const categoryTag = categoryDisplay;
             const categoryColor = {
                 'Mujeres': '#FF69B4',
                 'Hombres': '#4169E1',
-                'Accesorios': '#FFB347',
+                'Niños': '#FFB347',
                 'Sostenibilidad': '#32CD32'
             }[categoryTag] || '#999';
 
@@ -161,11 +162,11 @@ function updateCategoryPagesUI() {
 
             // --- MEJORA: Agregar tag de categoría si no existe ---
             if (!card.querySelector('.category-tag')) {
-                const categoryTag = product.category || 'Otros';
+                const categoryTag = (product.category || 'Otros').toLowerCase() === 'accesorios' ? 'Niños' : (product.category || 'Otros');
                 const categoryColor = {
                     'Mujeres': '#FF69B4',
                     'Hombres': '#4169E1',
-                    'Accesorios': '#FFB347',
+                    'Niños': '#FFB347',
                     'Sostenibilidad': '#32CD32'
                 }[categoryTag] || '#999';
                 
@@ -232,7 +233,7 @@ function getCategoryFromPath() {
     const file = (window.location.pathname.split('/').pop() || '').toLowerCase();
     if (file.includes('hombres')) return 'Hombres';
     if (file.includes('mujeres')) return 'Mujeres';
-    if (file.includes('accesorios')) return 'Accesorios';
+    if (file.includes('niños') || file.includes('ninos')) return 'Niños';
     if (file.includes('sostenibilidad')) return 'Sostenibilidad';
     return null;
 }
@@ -244,9 +245,15 @@ function renderCategoryPageProducts() {
     const category = getCategoryFromPath();
     if (!category) return;
 
+    const normalizeCategory = (value) => {
+        const lower = (value || '').toLowerCase();
+        if (lower === 'accesorios' || lower === 'ninos' || lower === 'niños') return 'niños';
+        return lower;
+    };
+
     const items = PRODUCTS.filter(p => {
         const cat = p.category || 'Otros';
-        return cat.toLowerCase() === category.toLowerCase() && p.status !== 'hidden';
+        return normalizeCategory(cat) === normalizeCategory(category) && p.status !== 'hidden';
     });
 
     if (!items.length) return;
