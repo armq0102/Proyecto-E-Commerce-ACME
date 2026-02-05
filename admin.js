@@ -1,5 +1,5 @@
 // --- CONFIGURATION ---
-const API_URL = 'https://priyecto-e-comerce-acme.onrender.com/api';
+const API_URL = 'http://localhost:3000/api';
 
 // --- STATE ---
 let currentProductToEdit = null;
@@ -336,6 +336,7 @@ async function toggleUserStatus(userId, currentStatus) {
 // Abrir modal reutilizable (Crear o Editar)
 function openProductModal(product) {
     const modalTitle = document.getElementById('productModalTitle');
+    const prodImageInput = document.getElementById('prodImage');
     
     if (product) {
         // MODO EDITAR
@@ -344,14 +345,19 @@ function openProductModal(product) {
         document.getElementById('prodName').value = product.title;
         document.getElementById('prodPrice').value = product.price;
         document.getElementById('prodStock').value = product.stock;
-        document.getElementById('prodImage').value = product.img;
+        document.getElementById('prodImage').value = ''; // Limpiar input file
+        document.getElementById('prodImage').setAttribute('data-current-img', product.img);
+        document.getElementById('prodImageUrl').value = '';
         document.getElementById('prodStatus').value = product.status || 'active';
+        prodImageInput.required = false; // No requerido al editar
     } else {
         // MODO CREAR
         currentProductToEdit = null;
         modalTitle.textContent = 'Nuevo Producto';
         document.getElementById('productForm').reset();
         document.getElementById('prodStatus').value = 'active';
+        prodImageInput.required = true; // Requerido al crear
+        document.getElementById('prodImage').removeAttribute('data-current-img');
     }
     document.getElementById('productModal').classList.add('active');
 }
@@ -359,11 +365,80 @@ function openProductModal(product) {
 document.getElementById('saveProductBtn').addEventListener('click', async (e) => {
     e.preventDefault();
     
+    let imageUrl = null;
+    const imageFile = document.getElementById('prodImage').files[0];
+    const imageUrlInput = document.getElementById('prodImageUrl').value;
+
+    // Si hay archivo seleccionado, subirlo
+    if (imageFile) {
+        // VALIDACIÓN: Limitar tamaño a 2MB para evitar error 413 del servidor
+        if (imageFile.size > 2 * 1024 * 1024) {
+            showToast('La imagen es muy pesada (Máx 2MB).', 'warning');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const base64 = event.target.result.split(',')[1]; // Obtener solo datos base64
+                const uploadResponse = await fetchAdmin('/products/upload', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        file: base64,
+                        // Sanitizar nombre de archivo para evitar errores con espacios
+                        filename: `${Date.now()}_${imageFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
+                    })
+                });
+
+                if (uploadResponse && uploadResponse.ok) {
+                    const uploadData = await uploadResponse.json();
+                    imageUrl = uploadData.imgPath;
+                    await saveProduct(imageUrl);
+                } else {
+                    // Manejo de errores específico
+                    let errorMsg = 'Error al subir la imagen';
+                    if (uploadResponse) {
+                        if (uploadResponse.status === 413) {
+                            errorMsg = 'La imagen es demasiado grande para el servidor.';
+                        } else {
+                            try {
+                                const errData = await uploadResponse.json();
+                                if (errData.msg) errorMsg = errData.msg;
+                            } catch (e) {}
+                        }
+                    }
+                    showToast(errorMsg, 'error');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                showToast('Error procesando el archivo', 'error');
+            }
+        };
+        reader.readAsDataURL(imageFile);
+    } 
+    // Si hay URL de alternativa, usarla
+    else if (imageUrlInput) {
+        imageUrl = imageUrlInput;
+        await saveProduct(imageUrl);
+    } 
+    // Si estamos editando y no hay nuevo archivo, usar el que ya tiene
+    else if (currentProductToEdit) {
+        const currentImg = document.getElementById('prodImage').getAttribute('data-current-img');
+        imageUrl = currentImg;
+        await saveProduct(imageUrl);
+    }
+    // Error: No hay imagen
+    else {
+        showToast('Selecciona una imagen o proporciona URL', 'error');
+    }
+});
+
+async function saveProduct(imageUrl) {
     const payload = {
         name: document.getElementById('prodName').value,
         price: parseFloat(document.getElementById('prodPrice').value),
         stock: parseInt(document.getElementById('prodStock').value),
-        imageUrl: document.getElementById('prodImage').value,
+        imageUrl: imageUrl,
         status: document.getElementById('prodStatus').value
     };
 
@@ -386,7 +461,7 @@ document.getElementById('saveProductBtn').addEventListener('click', async (e) =>
         showToast('Error al guardar producto', 'error');
     }
     setLoading(false);
-});
+}
 
 function openStatusModal(id, status) { currentOrderToEdit = id; document.getElementById('statusModalOrderId').textContent = `Pedido #${id}`; document.getElementById('newStatusSelect').value = status; document.getElementById('statusModal').classList.add('active'); }
 document.getElementById('confirmStatusBtn').addEventListener('click', async (e) => {

@@ -5,18 +5,35 @@ const User = require('./User.model');
 const connectDB = require('./mongo');
 
 const products = [
-    // Hombres
-    { title: 'Camisa clásica', price: 29.99, img: 'images/2.png', stock: 20, status: 'active' },
-    { title: 'Pantalón urbano', price: 49.99, img: 'images/3.png', stock: 15, status: 'active' },
-    { title: 'Chaqueta ligera', price: 79.99, img: 'images/4.png', stock: 10, status: 'active' },
-    // Mujeres
-    { title: 'Vestido veraniego', price: 39.99, img: 'images/5.png', stock: 25, status: 'active' },
-    { title: 'Blusa estampada', price: 24.99, img: 'images/1.png', stock: 30, status: 'active' },
-    { title: 'Falda midi', price: 34.99, img: 'images/2.png', stock: 12, status: 'active' },
-    // Accesorios
-    { title: 'Gorra clásica', price: 14.99, img: 'images/4.png', stock: 50, status: 'active' },
-    { title: 'Bolso de mano', price: 49.99, img: 'images/5.png', stock: 8, status: 'active' },
-    { title: 'Cinturón de cuero', price: 24.99, img: 'images/2.png', stock: 18, status: 'active' }
+    // ====== HOMBRES (8 productos) ======
+    { title: 'Camisa clásica blanca', price: 85000, img: 'images/2.png', stock: 15, status: 'active' },
+    { title: 'Camisa casual azul', price: 95000, img: 'images/2.png', stock: 12, status: 'active' },
+    { title: 'Pantalón casual beige', price: 120000, img: 'images/3.png', stock: 10, status: 'active' },
+    { title: 'Pantalón jean oscuro', price: 135000, img: 'images/3.png', stock: 14, status: 'active' },
+    { title: 'Chaqueta de cuero', price: 450000, img: 'images/4.png', stock: 5, status: 'active' },
+    { title: 'Chaqueta deportiva', price: 280000, img: 'images/4.png', stock: 8, status: 'active' },
+    { title: 'Polo premium', price: 65000, img: 'images/2.png', stock: 20, status: 'active' },
+    { title: 'Camiseta básica negra', price: 45000, img: 'images/2.png', stock: 25, status: 'active' },
+
+    // ====== MUJERES (8 productos) ======
+    { title: 'Vestido casual floral', price: 180000, img: 'images/5.png', stock: 18, status: 'active' },
+    { title: 'Vestido elegante negro', price: 250000, img: 'images/5.png', stock: 10, status: 'active' },
+    { title: 'Blusa blanca estampada', price: 75000, img: 'images/1.png', stock: 22, status: 'active' },
+    { title: 'Blusa de seda dorada', price: 125000, img: 'images/1.png', stock: 8, status: 'active' },
+    { title: 'Falda midi plisada', price: 160000, img: 'images/5.png', stock: 12, status: 'active' },
+    { title: 'Falda corta jean', price: 95000, img: 'images/5.png', stock: 16, status: 'active' },
+    { title: 'Pantalón chino blanco', price: 140000, img: 'images/3.png', stock: 11, status: 'active' },
+    { title: 'Pantalón palazzo', price: 155000, img: 'images/3.png', stock: 9, status: 'active' },
+
+    // ====== ACCESORIOS (8 productos) ======
+    { title: 'Gorra clásica negra', price: 35000, img: 'images/4.png', stock: 30, status: 'active' },
+    { title: 'Gorra ajustable roja', price: 40000, img: 'images/4.png', stock: 25, status: 'active' },
+    { title: 'Bolso de mano cuero', price: 280000, img: 'images/5.png', stock: 7, status: 'active' },
+    { title: 'Bolso crossbody beige', price: 195000, img: 'images/1.png', stock: 12, status: 'active' },
+    { title: 'Cinturón de cuero marrón', price: 65000, img: 'images/2.png', stock: 20, status: 'active' },
+    { title: 'Cinturón ancho negro', price: 75000, img: 'images/2.png', stock: 18, status: 'active' },
+    { title: 'Bufanda de lana', price: 55000, img: 'images/1.png', stock: 15, status: 'active' },
+    { title: 'Cinturón de cadena dorado', price: 85000, img: 'images/4.png', stock: 10, status: 'active' }
 ];
 
 const users = [

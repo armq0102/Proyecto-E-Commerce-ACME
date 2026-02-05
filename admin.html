@@ -136,7 +136,15 @@
                     <div class="form-group" style="flex:1;"><label>Precio (COP)</label><input type="number" id="prodPrice" min="100" step="100" required placeholder="Ej: 120000"></div>
                     <div class="form-group" style="flex:1;"><label>Stock</label><input type="number" id="prodStock" min="0" required></div>
                 </div>
-                <div class="form-group"><label>URL Imagen</label><input type="url" id="prodImage" required placeholder="https://..."></div>
+                <div class="form-group">
+                    <label>Imagen</label>
+                    <input type="file" id="prodImage" accept="image/*" required>
+                    <small style="color:#666;">O pega una URL en el campo de abajo</small>
+                </div>
+                <div class="form-group">
+                    <label>URL Imagen (Alternativa)</label>
+                    <input type="url" id="prodImageUrl" placeholder="https://... (opcional)">
+                </div>
                 <div class="form-group">
                     <label>Estado</label>
                     <select id="prodStatus"><option value="active">Activo</option><option value="hidden">Oculto</option><option value="out_of_stock">Agotado</option></select>

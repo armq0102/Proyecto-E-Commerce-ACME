@@ -2,7 +2,7 @@
 // Lógica de autenticación profesional conectada al Backend
 
 document.addEventListener('DOMContentLoaded', () => {
-    const API_URL = 'https://priyecto-e-comerce-acme.onrender.com/api';
+    const API_URL = 'http://localhost:3000/api';
 
     const API_AUTH_URL = `${API_URL}/auth`;
     const API_ORDERS_URL = `${API_URL}/orders`;

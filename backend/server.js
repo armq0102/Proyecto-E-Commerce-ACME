@@ -8,11 +8,15 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const path = require('path');
 
 // Confiar en el proxy de Render (Necesario para que el Rate Limit funcione con la IP real del usuario)
 app.set('trust proxy', 1);
 
 // --- MIDDLEWARES GLOBALES ---
+
+// Servir archivos estáticos (imágenes desde /images)
+app.use('/images', express.static(path.join(__dirname, '../images')));
 
 const allowedOrigins = [
   'http://localhost:5500',

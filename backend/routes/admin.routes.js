@@ -1,5 +1,7 @@
 const { Router } = require('express');
 const mongoose = require('mongoose');
+const fs = require('fs');
+const path = require('path');
 const Product = require('../Product.model');
 const Order = require('../Order.model');
 const User = require('../User.model');
@@ -24,6 +26,40 @@ const STATUS_FLOW = {
     Entregado: [],
     Cancelado: []
 };
+
+// ==========================================
+// RUTAS DE SUBIDA DE ARCHIVOS
+// ==========================================
+
+// POST /api/admin/products/upload - Subir imagen
+router.post('/products/upload', (req, res) => {
+    try {
+        const { file, filename } = req.body;
+        
+        if (!file || !filename) {
+            return res.status(400).json({ ok: false, msg: 'Falta archivo o nombre' });
+        }
+
+        // Decodificar base64 y guardar
+        const buffer = Buffer.from(file, 'base64');
+        const uploadsDir = path.join(__dirname, '../images');
+        
+        // Crear carpeta si no existe
+        if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+
+        const filepath = path.join(uploadsDir, filename);
+        fs.writeFileSync(filepath, buffer);
+
+        // Retornar ruta relativa para usar en el frontend
+        const imgPath = `/images/${filename}`;
+        res.json({ ok: true, imgPath });
+    } catch (error) {
+        console.error('Error uploading file:', error);
+        res.status(500).json({ ok: false, msg: 'Error al subir la imagen' });
+    }
+});
 
 // ==========================================
 // RUTAS DE PRODUCTOS (Inventario)
