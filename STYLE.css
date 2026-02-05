@@ -662,18 +662,32 @@ body {
     }
 }
 
-/* Productos grid para las páginas de categoría */
-.products-grid {
+/* Featured Products Grid - Exactamente 4 columns */
+.featured-products-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     column-gap: 24px;
     row-gap: 32px;
     max-width: 1200px;
-    margin: 24px auto 0;
+    margin: 0 auto;
     padding: 0 16px;
     font-family: "Inter", "Roboto", "Helvetica", sans-serif;
     opacity: 1;
     transition: opacity 0.6s ease-in-out;
+}
+
+@media (max-width: 1200px) {
+    .featured-products-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+    }
+}
+
+@media (max-width: 640px) {
+    .featured-products-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
 }
 
 .product-card {
