@@ -48,6 +48,18 @@ function formatCOP(value) {
     }).format(value);
 }
 
+function getDiscountInfo(product) {
+    const oldPrice = product.oldPrice ?? product.compareAtPrice ?? product.previousPrice;
+    const price = product.price;
+
+    if (oldPrice && price && oldPrice > price) {
+        const percent = Math.round(((oldPrice - price) / oldPrice) * 100);
+        return { oldPrice, percent };
+    }
+
+    return { oldPrice: null, percent: null };
+}
+
 // --- SINCRONIZACIÓN CON BACKEND ---
 async function syncProducts() {
     try {
@@ -67,8 +79,12 @@ function renderFeaturedProducts() {
         // Filtramos los ocultos antes de mostrar
         const featured = PRODUCTS.filter(p => p.status !== 'hidden').slice(0, 3);
         featuredContainer.innerHTML = featured.map(p => {
+            const productId = p.id || p._id;
             const isOutOfStock = (p.stock !== undefined && p.stock <= 0) || p.status === 'out_of_stock';
             const isLowStock = !isOutOfStock && p.stock !== undefined && p.stock > 0 && p.stock < 10;
+            const brand = (p.brand || 'ACME').toUpperCase();
+            const discount = getDiscountInfo(p);
+            const discountClass = discount.percent ? '' : 'is-hidden';
             
             // Tag de categoría
             const categoryTag = p.category || 'Otros';
@@ -81,19 +97,33 @@ function renderFeaturedProducts() {
 
             return `
             <article class="product-card ${isOutOfStock ? 'out-of-stock' : ''}">
-                <div style="position: relative;">
+                <div class="product-media">
                     ${isOutOfStock ? '<span class="badge-out-of-stock">Agotado</span>' : ''}
+                    <span class="discount-badge ${discountClass}">${discount.percent ? `-${discount.percent}%` : ''}</span>
                     <span class="category-tag" style="position: absolute; top: 10px; right: 10px; background: ${categoryColor}; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">${categoryTag}</span>
+                    <button class="media-arrow media-arrow--left" type="button" aria-label="Imagen anterior">&#x2039;</button>
+                    <button class="media-arrow media-arrow--right" type="button" aria-label="Siguiente imagen">&#x203A;</button>
                     <img src="${resolveImageUrl(p.img)}" alt="${p.title}">
+                    <div class="media-dots" aria-hidden="true">
+                        <span class="media-dot active"></span>
+                        <span class="media-dot"></span>
+                        <span class="media-dot"></span>
+                    </div>
                 </div>
-                <h3>${p.title}</h3>
-                <p class="price">${formatCOP(p.price)}</p>
-                ${isLowStock ? `<p style="color:var(--acme-red, #cc0000);font-weight:bold;font-size:0.85rem;margin-bottom:5px;">¡Solo quedan ${p.stock}!</p>` : ''}
-                <button class="btn btn-dark add-to-cart"
-                        data-id="${p.id}"
-                        ${isOutOfStock ? 'disabled' : ''}>
-                    ${isOutOfStock ? 'Agotado' : 'Agregar al carrito'}
-                </button>
+                <div class="product-info">
+                    <h3 class="product-title">${p.title}</h3>
+                    <div class="product-brand">${brand}</div>
+                    <div class="price-row">
+                        <span class="price-current">${formatCOP(p.price)}</span>
+                        ${discount.oldPrice ? `<span class="price-old">${formatCOP(discount.oldPrice)}</span>` : ''}
+                    </div>
+                    ${isLowStock ? `<p class="stock-warning" style="color:var(--acme-red, #cc0000);font-weight:bold;font-size:0.85rem;margin:6px 0 0;">¡Solo quedan ${p.stock}!</p>` : ''}
+                    <button class="btn btn-dark add-to-cart"
+                            data-id="${productId}"
+                            ${isOutOfStock ? 'disabled' : ''}>
+                        ${isOutOfStock ? 'Agotado' : 'Agregar al carrito'}
+                    </button>
+                </div>
             </article>
         `}).join('');
     }
@@ -151,7 +181,7 @@ function updateCategoryPagesUI() {
             // ---------------------------------------------------
             
             // --- MEJORA: Actualizar el precio dinámicamente ---
-            const priceEl = card.querySelector('p.price');
+            const priceEl = card.querySelector('.price-current');
             if (priceEl) {
                 priceEl.textContent = formatCOP(product.price);
             }
@@ -224,12 +254,31 @@ function renderCategoryPageProducts() {
     grid.innerHTML = items.map(p => {
         const productId = p.id || p._id;
         const isOutOfStock = (p.stock !== undefined && p.stock <= 0) || p.status === 'out_of_stock';
+        const brand = (p.brand || 'ACME').toUpperCase();
+        const discount = getDiscountInfo(p);
+        const discountClass = discount.percent ? '' : 'is-hidden';
         return `
         <article class="product-card">
-            <img src="${resolveImageUrl(p.img)}" alt="${p.title}">
-            <h3>${p.title}</h3>
-            <p class="price">${formatCOP(p.price)}</p>
-            <p><button class="btn btn-dark add-to-cart" data-id="${productId}" ${isOutOfStock ? 'disabled' : ''}>${isOutOfStock ? 'Agotado' : 'Agregar al carrito'}</button></p>
+            <div class="product-media">
+                <span class="discount-badge ${discountClass}">${discount.percent ? `-${discount.percent}%` : ''}</span>
+                <button class="media-arrow media-arrow--left" type="button" aria-label="Imagen anterior">&#x2039;</button>
+                <button class="media-arrow media-arrow--right" type="button" aria-label="Siguiente imagen">&#x203A;</button>
+                <img src="${resolveImageUrl(p.img)}" alt="${p.title}">
+                <div class="media-dots" aria-hidden="true">
+                    <span class="media-dot active"></span>
+                    <span class="media-dot"></span>
+                    <span class="media-dot"></span>
+                </div>
+            </div>
+            <div class="product-info">
+                <h3 class="product-title">${p.title}</h3>
+                <div class="product-brand">${brand}</div>
+                <div class="price-row">
+                    <span class="price-current">${formatCOP(p.price)}</span>
+                    ${discount.oldPrice ? `<span class="price-old">${formatCOP(discount.oldPrice)}</span>` : ''}
+                </div>
+                <button class="btn btn-dark add-to-cart" data-id="${productId}" ${isOutOfStock ? 'disabled' : ''}>${isOutOfStock ? 'Agotado' : 'Agregar al carrito'}</button>
+            </div>
         </article>
         `;
     }).join('');
