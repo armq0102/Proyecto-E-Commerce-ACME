@@ -42,7 +42,7 @@ router.post('/products/upload', (req, res) => {
 
         // Decodificar base64 y guardar
         const buffer = Buffer.from(file, 'base64');
-        const uploadsDir = path.join(__dirname, '../images');
+        const uploadsDir = path.join(__dirname, '../../images');
         
         // Crear carpeta si no existe
         if (!fs.existsSync(uploadsDir)) {

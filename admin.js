@@ -1,5 +1,5 @@
 // --- CONFIGURATION ---
-const API_URL = 'http://localhost:3000/api';
+const API_URL = 'https://priyecto-e-comerce-acme.onrender.com/api';
 
 // --- STATE ---
 let currentProductToEdit = null;

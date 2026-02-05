@@ -38,7 +38,7 @@ app.use(cors({
 }));
 
 // Seguridad básica contra payloads grandes
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '6mb' }));
 
 // Rate Limiting para Auth (Protección contra fuerza bruta)
 const authLimiter = rateLimit({

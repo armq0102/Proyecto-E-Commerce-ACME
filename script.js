@@ -1,7 +1,7 @@
 // script.js - Lógica principal del frontend (Carrito y Productos)
 
 // --- CONFIGURACIÓN DE ENTORNO ---
-const API_URL = 'http://localhost:3000/api';
+const API_URL = 'https://priyecto-e-comerce-acme.onrender.com/api';
 
 // Base de datos de productos (Coincide con los IDs de tus HTMLs)
 let PRODUCTS = []; // Ahora vacío, se llena desde el backend
