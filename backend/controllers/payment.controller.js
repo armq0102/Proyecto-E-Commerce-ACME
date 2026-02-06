@@ -5,6 +5,8 @@ const User = require('../User.model');
 const PaymentSession = require('../PaymentSession.model');
 const wompiService = require('../wompi.service');
 const crypto = require('crypto');
+const { sendError } = require('../utils/response');
+const { z } = require('../utils/validate');
 
 const createTransaction = async (req, res) => {
     try {
@@ -15,7 +17,7 @@ const createTransaction = async (req, res) => {
 
         if (!publicKey || !integritySecret) {
             console.error('❌ Faltan variables de entorno de Wompi (Public Key o Integrity Secret).');
-            return res.status(500).json({ ok: false, msg: 'Error interno de configuración de pagos.' });
+            return sendError(res, 500, 'Error interno de configuración de pagos.');
         }
         
         const envKeys = { publicKey, integritySecret };
@@ -24,7 +26,7 @@ const createTransaction = async (req, res) => {
 
         // 2️⃣ Validación básica de carrito
         if (!items || !Array.isArray(items) || items.length === 0) {
-            return res.status(400).json({ ok: false, msg: 'El carrito está vacío.' });
+            return sendError(res, 400, 'El carrito está vacío.');
         }
 
         // 3️⃣ Definir URL de redirección (Sanitizada)
@@ -35,7 +37,7 @@ const createTransaction = async (req, res) => {
         // Validación de seguridad: Si es '*' o no existe, fallar antes de ir a Wompi
         if (!frontendUrl || frontendUrl === '*') {
             console.error('❌ FRONTEND_URL inválida para redirección:', frontendUrl);
-            return res.status(500).json({ ok: false, msg: 'Configuración de URL inválida en el servidor (FRONTEND_URL).' });
+            return sendError(res, 500, 'Configuración de URL inválida en el servidor (FRONTEND_URL).');
         }
 
         // Eliminar slash final si existe para evitar dobles slashes (ej: .com//profile)
@@ -53,10 +55,7 @@ const createTransaction = async (req, res) => {
             // FIX: Validar que el ID sea un ObjectId válido de MongoDB
             // Esto evita que el servidor falle (500) si hay IDs antiguos como "p1" en el carrito
             if (!mongoose.isValidObjectId(productId)) {
-                return res.status(400).json({ 
-                    ok: false, 
-                    msg: 'Tu carrito tiene datos antiguos. Por favor vacíalo e intenta de nuevo.' 
-                });
+                return sendError(res, 400, 'Tu carrito tiene datos antiguos. Por favor vacíalo e intenta de nuevo.');
             }
 
             const product = await Product.findById(productId);
@@ -88,7 +87,7 @@ const createTransaction = async (req, res) => {
         }
 
         if (errors.length > 0) {
-            return res.status(400).json({ ok: false, msg: 'Errores en carrito.', errors });
+            return sendError(res, 400, 'Errores en carrito.', errors);
         }
 
         // 5️⃣ CREAR ORDEN (ESTADO: PENDIENTE) - "Source of Truth"
@@ -152,17 +151,35 @@ const createTransaction = async (req, res) => {
         return res.status(200).json({ ok: true, redirectUrl: wompiUrl, reference });
     } catch (error) {
         console.error('Error al iniciar pago Wompi', error);
-        return res.status(500).json({
-            ok: false,
-            msg: 'Error al iniciar pago con Wompi.',
-            error: error.message // Para ver el error real en consola (ej: validación fallida)
-        });
+        return sendError(res, 500, 'Error al iniciar pago con Wompi.', error.message);
     }
 };
 
 const handleWebhook = async (req, res) => {
     try {
-        const { event, data, signature, timestamp } = req.body || {};
+        const webhookSchema = z.object({
+            event: z.string(),
+            data: z.object({
+                transaction: z.object({
+                    id: z.string(),
+                    status: z.string(),
+                    amount_in_cents: z.number().int().nonnegative(),
+                    reference: z.string(),
+                    currency: z.string()
+                })
+            }),
+            signature: z.object({
+                checksum: z.string()
+            }),
+            timestamp: z.string()
+        });
+
+        const parsed = webhookSchema.safeParse(req.body || {});
+        if (!parsed.success) {
+            return sendError(res, 400, 'Payload de webhook invalido', parsed.error.errors);
+        }
+
+        const { event, data, signature, timestamp } = parsed.data;
 
         // 1. Validar que sea un evento de transacción
         if (event !== 'transaction.updated') {
@@ -180,7 +197,7 @@ const handleWebhook = async (req, res) => {
 
         if (calculatedSignature !== signature.checksum) {
             console.error('❌ Firma inválida en Webhook Wompi');
-            return res.status(400).json({ ok: false, msg: 'Firma inválida' });
+            return sendError(res, 400, 'Firma inválida');
         }
 
         // 3. Verificar Estado de la Transacción
@@ -189,29 +206,36 @@ const handleWebhook = async (req, res) => {
             return res.status(200).json({ ok: true, msg: 'Transacción no aprobada' });
         }
 
-        // 4. Buscar la Sesión y la Orden
+        // 4. Idempotencia por transactionId (evita doble procesamiento global)
+        const existingByTx = await Order.findOne({ 'paymentInfo.transactionId': transaction.id });
+        if (existingByTx) {
+            console.log(`ℹ️ Webhook duplicado (transactionId). Orden ${existingByTx._id} ya procesada.`);
+            return res.status(200).json({ ok: true, msg: 'Ya procesado' });
+        }
+
+        // 5. Buscar la Sesión y la Orden
         const reference = transaction.reference;
         const session = await PaymentSession.findOne({ reference });
 
         if (!session) {
             console.error(`❌ Sesión no encontrada para ref: ${reference}`);
-            return res.status(404).json({ ok: false, msg: 'Sesión perdida' });
+            return sendError(res, 404, 'Sesión perdida');
         }
 
         const order = await Order.findById(session.orderId);
         if (!order) {
             console.error(`❌ Orden no encontrada: ${session.orderId}`);
-            return res.status(404).json({ ok: false, msg: 'Orden perdida' });
+            return sendError(res, 404, 'Orden perdida');
         }
 
-        // 5. IDEMPOTENCIA REAL
+        // 6. IDEMPOTENCIA REAL
         // Si la orden ya está pagada, no hacemos NADA.
         if (order.status === 'Pagado') {
             console.log(`ℹ️ Webhook duplicado ignorado. Orden ${order._id} ya pagada.`);
             return res.status(200).json({ ok: true, msg: 'Ya procesado' });
         }
 
-        // 6. ATOMICIDAD (Transacción MongoDB)
+        // 7. ATOMICIDAD (Transacción MongoDB)
         // Iniciamos una sesión para garantizar que el stock se descuente TODO o NADA.
         const dbSession = await mongoose.startSession();
         dbSession.startTransaction();
@@ -242,7 +266,9 @@ const handleWebhook = async (req, res) => {
             order.paymentInfo = {
                 transactionId: transaction.id,
                 gateway: 'Wompi',
-                amount: transaction.amount_in_cents
+                amountInCents: transaction.amount_in_cents,
+                reference,
+                status: transaction.status
             };
 
             await order.save({ session: dbSession });
@@ -261,12 +287,12 @@ const handleWebhook = async (req, res) => {
             
             console.error(`❌ Error en transacción de orden ${order._id}:`, err.message);
             // Opcional: Marcar orden como "Fallida" o "Reembolso Requerido"
-            return res.status(400).json({ ok: false, msg: 'Error procesando stock' });
+            return sendError(res, 400, 'Error procesando stock');
         }
 
     } catch (error) {
         console.error('Error procesando webhook:', error);
-        return res.status(500).json({ ok: false, msg: 'Error interno' });
+        return sendError(res, 500, 'Error interno', error.message);
     }
 };
 

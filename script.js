@@ -1,18 +1,16 @@
 // script.js - Lógica principal del frontend (Carrito y Productos)
 
 // --- CONFIGURACIÓN DE ENTORNO ---
-const API_URL = 'https://priyecto-e-comerce-acme.onrender.com/api';
+const API_URL = (window.ACME_CONFIG && window.ACME_CONFIG.API_URL)
+    ? window.ACME_CONFIG.API_URL
+    : 'https://priyecto-e-comerce-acme.onrender.com/api';
 const API_BASE_URL = API_URL.replace(/\/api\/?$/, '');
-
-function resolveImageUrl(img) {
-    if (!img) return '';
-    if (/^https?:\/\//i.test(img)) return img;
-    if (img.startsWith('/')) return `${API_BASE_URL}${img}`;
-    return `${API_BASE_URL}/${img}`;
-}
 
 // Base de datos de productos (Coincide con los IDs de tus HTMLs)
 let PRODUCTS = []; // Ahora vacío, se llena desde el backend
+const PRODUCTS_CACHE_KEY = 'acme_products_cache_v1';
+const PRODUCTS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+let featuredRotationTimer = null;
 
 // --- SISTEMA DE FEEDBACK (TOASTS) ---
 function showToast(message, type = 'info') {
@@ -39,14 +37,8 @@ function showToast(message, type = 'info') {
 }
 
 // --- FUNCIÓN DE FORMATO DE MONEDA ---
-function formatCOP(value) {
-    return new Intl.NumberFormat('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    }).format(value);
-}
+const formatCOP = window.ACME_UTILS?.formatCOP || ((value) => value);
+const resolveImageUrl = window.ACME_UTILS?.resolveImageUrl || ((img) => img || '');
 
 function getDiscountInfo(product) {
     const oldPrice = product.oldPrice ?? product.compareAtPrice ?? product.previousPrice;
@@ -63,9 +55,28 @@ function getDiscountInfo(product) {
 // --- SINCRONIZACIÓN CON BACKEND ---
 async function syncProducts() {
     try {
+        const cachedRaw = localStorage.getItem(PRODUCTS_CACHE_KEY);
+        if (cachedRaw) {
+            try {
+                const cached = JSON.parse(cachedRaw);
+                const isFresh = cached.timestamp && (Date.now() - cached.timestamp) < PRODUCTS_CACHE_TTL_MS;
+                if (isFresh && Array.isArray(cached.items)) {
+                    PRODUCTS = cached.items;
+                    console.log('⚡ Productos cargados desde cache:', PRODUCTS.length);
+                    return;
+                }
+            } catch (e) {
+                // Ignorar cache corrupta
+            }
+        }
+
         const response = await fetch(`${API_URL}/products`);
         if (response.ok) {
             PRODUCTS = await response.json(); // Reemplazo total con datos reales de Mongo
+            localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify({
+                items: PRODUCTS,
+                timestamp: Date.now()
+            }));
             console.log('✅ Productos cargados desde Backend:', PRODUCTS.length);
         }
     } catch (error) {
@@ -139,7 +150,7 @@ function renderFeaturedProducts() {
                         <span class="category-tag" style="position: absolute; top: 10px; right: 10px; background: ${categoryColor}; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">${categoryTag}</span>
                         <button class="media-arrow media-arrow--left" type="button" aria-label="Imagen anterior">&#x2039;</button>
                         <button class="media-arrow media-arrow--right" type="button" aria-label="Siguiente imagen">&#x203A;</button>
-                        <img src="${resolveImageUrl(p.img)}" alt="${p.title}">
+                        <img src="${resolveImageUrl(p.img, API_BASE_URL)}" alt="${p.title}" loading="lazy">
                         <div class="media-dots" aria-hidden="true">
                             <span class="media-dot active"></span>
                             <span class="media-dot"></span>
@@ -153,7 +164,7 @@ function renderFeaturedProducts() {
                             <span class="price-current">${formatCOP(p.price)}</span>
                             ${discount.oldPrice ? `<span class="price-old">${formatCOP(discount.oldPrice)}</span>` : ''}
                         </div>
-                        ${isLowStock ? `<p class="stock-warning" style="color:var(--acme-red, #cc0000);font-weight:bold;font-size:0.85rem;margin:6px 0 0;">¡Solo quedan ${p.stock}!</p>` : ''}
+                        ${isLowStock ? `<p class="stock-warning">¡Solo quedan ${p.stock}!</p>` : ''}
                         <button class="btn btn-dark add-to-cart"
                                 data-id="${productId}"
                                 ${isOutOfStock ? 'disabled' : ''}>
@@ -172,7 +183,10 @@ function renderFeaturedProducts() {
         }, 250);
         
         // Rotar productos cada 3.5 segundos
-        setTimeout(() => renderFeaturedProducts(), 3500);
+        if (featuredRotationTimer) {
+            clearTimeout(featuredRotationTimer);
+        }
+        featuredRotationTimer = setTimeout(() => renderFeaturedProducts(), 3500);
     }
 }
 
@@ -263,10 +277,6 @@ function updateCategoryPagesUI() {
                 if (!card.querySelector('.stock-warning')) {
                     const warning = document.createElement('p');
                     warning.className = 'stock-warning';
-                    warning.style.color = 'var(--acme-red, #cc0000)';
-                    warning.style.fontWeight = 'bold';
-                    warning.style.fontSize = '0.85rem';
-                    warning.style.margin = '5px 0';
                     warning.textContent = `¡Solo quedan ${product.stock}!`;
                     btn.parentNode.insertBefore(warning, btn);
                 }
@@ -317,7 +327,7 @@ function renderCategoryPageProducts() {
                 <span class="discount-badge ${discountClass}">${discount.percent ? `-${discount.percent}%` : ''}</span>
                 <button class="media-arrow media-arrow--left" type="button" aria-label="Imagen anterior">&#x2039;</button>
                 <button class="media-arrow media-arrow--right" type="button" aria-label="Siguiente imagen">&#x203A;</button>
-                <img src="${resolveImageUrl(p.img)}" alt="${p.title}">
+                <img src="${resolveImageUrl(p.img, API_BASE_URL)}" alt="${p.title}" loading="lazy">
                 <div class="media-dots" aria-hidden="true">
                     <span class="media-dot active"></span>
                     <span class="media-dot"></span>
@@ -454,12 +464,12 @@ function updateCartUI() {
 
     if (drawerContent && drawerTotal) {
         if (cart.length === 0) {
-            drawerContent.innerHTML = '<p style="text-align:center; margin-top:20px; color:#666;">Tu carrito está vacío.</p>';
+            drawerContent.innerHTML = '<p class="cart-empty">Tu carrito está vacío.</p>';
             drawerTotal.textContent = `Total: ${formatCOP(0)}`;
         } else {
             drawerContent.innerHTML = cart.map(item => `
                 <div class="cart-item">
-                    <img src="${resolveImageUrl(item.img)}" alt="${item.title}">
+                    <img src="${resolveImageUrl(item.img, API_BASE_URL)}" alt="${item.title}">
                     <div class="meta">
                         <div class="title">${item.title}</div>
                         <div class="price">${formatCOP(item.price)}</div>
@@ -479,10 +489,22 @@ function updateCartUI() {
     // 3. Actualizar Modal de Carrito (si se usa en index)
     const modalContent = document.getElementById('cartContent');
     if (modalContent) {
+        modalContent.classList.add('cart-summary');
         modalContent.textContent = cart.length === 0 
             ? 'Tu carrito está vacío.' 
             : `Tienes ${count} productos. Total: ${formatCOP(total)}`;
     }
+}
+
+function setCheckoutLoading(isLoading) {
+    const drawerCheckout = document.getElementById('drawerCheckout');
+    const modalCheckout = document.getElementById('checkoutBtn');
+
+    [drawerCheckout, modalCheckout].forEach((btn) => {
+        if (!btn) return;
+        btn.disabled = isLoading;
+        btn.classList.toggle('is-loading', isLoading);
+    });
 }
 
 // Abrir/Cerrar Drawer
@@ -532,6 +554,7 @@ window.handleCheckout = async function() {
     }
 
     try {
+        setCheckoutLoading(true);
         // 1. Solicitar Transacción Wompi al Backend
         showToast('Redirigiendo a Wompi...', 'info');
 
@@ -559,7 +582,7 @@ window.handleCheckout = async function() {
         if (!contentType || !contentType.includes("application/json")) {
             const text = await response.text();
             console.error('Respuesta no válida del servidor (No es JSON):', text);
-            throw new Error(`Error de comunicación con el servidor (Status: ${response.status})`);
+            throw new Error(`Error del servidor (${response.status}). Intenta nuevamente.`);
         }
 
         const data = await response.json();
@@ -583,6 +606,7 @@ window.handleCheckout = async function() {
     } catch (error) {
         console.error('Error checkout:', error);
         showToast(error.message, 'error');
+        setCheckoutLoading(false);
     }
 };
 
@@ -624,8 +648,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchBtn = document.getElementById('searchBtn');
     if (searchBtn) {
         searchBtn.addEventListener('click', () => {
-            const query = document.getElementById('searchInput').value;
-            if(query) alert(`Buscando: ${query} (Simulado)`);
+            const query = document.getElementById('searchInput').value.trim();
+            const statusEl = document.getElementById('searchStatus');
+            if (!statusEl) return;
+
+            if (!query) {
+                statusEl.textContent = 'Ingresa un termino de busqueda.';
+                statusEl.classList.add('is-error');
+                return;
+            }
+
+            statusEl.textContent = `Buscando: ${query} (Simulado)`;
+            statusEl.classList.remove('is-error');
         });
     }
     

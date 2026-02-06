@@ -24,5 +24,6 @@ const productSchema = new mongoose.Schema({
 
 // Indexar título para búsquedas rápidas
 productSchema.index({ title: 'text' });
+productSchema.index({ status: 1, category: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Product', productSchema);

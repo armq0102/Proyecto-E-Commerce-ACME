@@ -2,10 +2,13 @@
 // Lógica de autenticación profesional conectada al Backend
 
 document.addEventListener('DOMContentLoaded', () => {
-    const API_URL = 'https://priyecto-e-comerce-acme.onrender.com/api';
+    const API_URL = (window.ACME_CONFIG && window.ACME_CONFIG.API_URL)
+        ? window.ACME_CONFIG.API_URL
+        : 'https://priyecto-e-comerce-acme.onrender.com/api';
 
     const API_AUTH_URL = `${API_URL}/auth`;
     const API_ORDERS_URL = `${API_URL}/orders`;
+    const formatCOP = window.ACME_UTILS?.formatCOP || ((value) => value);
     
     // --- UTILIDADES GLOBALES (Para evitar errores con onclick en HTML) ---
     if (!window.openModal) {
@@ -115,7 +118,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const orders = await response.json();
                 showOrdersInModal(orders);
             } else {
-                alert('No se pudo obtener el historial de pedidos.');
+                let msg = 'No se pudo obtener el historial de pedidos.';
+                try {
+                    const data = await response.json();
+                    msg = data.msg || data.message || msg;
+                } catch (e) {
+                    // Mantener mensaje por defecto si no es JSON
+                }
+                alert(msg);
             }
         } catch (error) {
             console.error('Error obteniendo pedidos:', error);
@@ -164,43 +174,60 @@ document.addEventListener('DOMContentLoaded', () => {
         handleGetOrdersForProfilePage(token);
     };
 
+    const statusClassMap = {
+        Pendiente: 'status-pill--pending',
+        Pagado: 'status-pill--paid',
+        Enviado: 'status-pill--shipped',
+        Entregado: 'status-pill--delivered',
+        Cancelado: 'status-pill--cancelled'
+    };
+
+    const buildOrdersTable = (orders) => {
+        let html = '<div class="orders-table-wrap">';
+        html += '<table class="orders-table">';
+        html += '<thead><tr><th>ID</th><th>Fecha</th><th>Total</th><th>Estado</th></tr></thead><tbody>';
+
+        orders.forEach(order => {
+            const orderId = order.id || order._id || '';
+            const status = order.status || 'Pendiente';
+            const statusClass = statusClassMap[status] || 'status-pill--pending';
+
+            html += `<tr>
+                <td>#${orderId}</td>
+                <td>${new Date(order.createdAt || order.date).toLocaleDateString()}</td>
+                <td><strong>${formatCOP(order.total)}</strong></td>
+                <td><span class="status-pill ${statusClass}">${status}</span></td>
+            </tr>`;
+        });
+
+        html += '</tbody></table></div>';
+        return html;
+    };
+
     const handleGetOrdersForProfilePage = async (token) => {
         const container = document.getElementById('profileOrdersTableContainer');
         if(!container) return;
+
+        container.innerHTML = '<p class="orders-state">Cargando tus pedidos...</p>';
 
         try {
             const response = await fetch(API_ORDERS_URL, { headers: { 'Authorization': `Bearer ${token}` }});
             if (response.ok) {
                 const orders = await response.json();
                 if (orders.length === 0) {
-                    container.innerHTML = '<p>No tienes pedidos registrados.</p>';
+                    container.innerHTML = '<p class="orders-state">No tienes pedidos registrados.</p>';
                 } else {
-                    // Renderizar tabla HTML
-                    let html = '<div style="overflow-x:auto;"><table style="width:100%; border-collapse: collapse; text-align: left;">';
-                    html += '<thead style="background:#f8f9fa; border-bottom:2px solid #dee2e6;"><tr><th style="padding:12px;">ID</th><th style="padding:12px;">Fecha</th><th style="padding:12px;">Total</th><th style="padding:12px;">Estado</th></tr></thead><tbody>';
-                    orders.forEach(order => {
-                        html += `<tr style="border-bottom:1px solid #eee;">
-                            <td style="padding:12px;">#${order.id}</td>
-                            <td style="padding:12px;">
-                                ${new Date(order.createdAt || order.date).toLocaleDateString()}
-                            </td>
-                            <td style="padding:12px; font-weight:bold;">${formatCOP(order.total)}</td>
-                            <td style="padding:12px;">
-                                <span style="
-                                    background:#e6fffa;
-                                    color:#006d5b;
-                                    padding:4px 8px;
-                                    border-radius:4px;
-                                    font-size:0.85rem;
-                                ">
-                                    ${order.status}
-                                </span>
-                            </td>
-                        </tr>`;
-                    });
-                    html += '</tbody></table></div>';
-                    container.innerHTML = html;
+                    container.innerHTML = buildOrdersTable(orders);
                 }
+            } else {
+                let msg = 'No se pudo obtener el historial de pedidos.';
+                try {
+                    const data = await response.json();
+                    msg = data.msg || data.message || msg;
+                } catch (e) {
+                    // Mantener mensaje por defecto si no es JSON
+                }
+                container.innerHTML = `<p class="orders-state is-error">${msg}</p>`;
             }
         } catch (error) { console.error(error); }
     };
@@ -210,35 +237,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const body = detallesModal.querySelector('.modal-body');
         
         if (orders.length === 0) {
-            body.innerHTML = '<p>Aún no has realizado ningún pedido.</p>';
+            body.innerHTML = '<p class="orders-state">Aún no has realizado ningún pedido.</p>';
         } else {
-            let html = '<div style="overflow-x:auto;"><table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">';
-            html += '<thead style="background:#f4f4f4; color:#333;"><tr>';
-            html += '<th style="padding: 10px; border-bottom: 2px solid #ddd;">ID</th><th style="padding: 10px; border-bottom: 2px solid #ddd;">Fecha</th><th style="padding: 10px; border-bottom: 2px solid #ddd;">Total</th><th style="padding: 10px; border-bottom: 2px solid #ddd;">Estado</th>';
-            html += '</tr></thead><tbody>';
-            
-            orders.forEach(order => {
-                html += `<tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:12px;">#${order.id}</td>
-                    <td style="padding:12px;">
-                        ${new Date(order.createdAt || order.date).toLocaleDateString()}
-                    </td>
-                    <td style="padding:12px; font-weight:bold;">${formatCOP(order.total)}</td>
-                    <td style="padding:12px;">
-                        <span style="
-                            background:#e6fffa;
-                            color:#006d5b;
-                            padding:4px 8px;
-                            border-radius:4px;
-                            font-size:0.85rem;
-                        ">
-                            ${order.status}
-                        </span>
-                    </td>
-                </tr>`;
-            });
-            html += '</tbody></table></div>';
-            body.innerHTML = html;
+            body.innerHTML = buildOrdersTable(orders);
         }
         window.openModal(detallesModal);
     };
@@ -267,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const result = await response.json();
 
-                if (!response.ok) throw new Error(result.message || 'Error de login');
+                if (!response.ok) throw new Error(result.msg || result.message || 'Error de login');
 
                 // Guardar SOLO el token
                 localStorage.setItem('acme_token', result.token);
@@ -310,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const result = await response.json();
 
-                if (!response.ok) throw new Error(result.message || 'Error de registro');
+                if (!response.ok) throw new Error(result.msg || result.message || 'Error de registro');
 
                 registerStatus.textContent = '¡Cuenta creada! Inicia sesión.';
                 registerStatus.style.color = 'green';

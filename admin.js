@@ -1,33 +1,74 @@
 // --- CONFIGURATION ---
-const API_URL = 'https://priyecto-e-comerce-acme.onrender.com/api';
+const API_URL = (window.ACME_CONFIG && window.ACME_CONFIG.API_URL)
+    ? window.ACME_CONFIG.API_URL
+    : 'https://priyecto-e-comerce-acme.onrender.com/api';
 const API_BASE_URL = API_URL.replace(/\/api\/?$/, '');
-
-function resolveImageUrl(img) {
-    if (!img) return '';
-    if (/^https?:\/\//i.test(img)) return img;
-    if (img.startsWith('/')) return `${API_BASE_URL}${img}`;
-    return `${API_BASE_URL}/${img}`;
-}
+const resolveImageUrl = window.ACME_UTILS?.resolveImageUrl || ((img) => img || '');
 
 // --- STATE ---
 let currentProductToEdit = null;
 let currentAdminId = null;
 let currentOrderToEdit = null;
 let currentSection = localStorage.getItem('acme_admin_section') || 'inventory';
+const paginationState = {
+    inventory: { page: 1, limit: 10, total: 0, pages: 1 },
+    orders: { page: 1, limit: 10, total: 0, pages: 1 },
+    users: { page: 1, limit: 10, total: 0, pages: 1 }
+};
+const searchState = {
+    inventory: ''
+};
 
 // --- HELPERS ---
-function formatCOP(value) {
-    return new Intl.NumberFormat('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    }).format(value);
+const formatCOP = window.ACME_UTILS?.formatCOP || ((value) => value);
+
+function normalizePagedResponse(data) {
+    if (Array.isArray(data)) {
+        const total = data.length;
+        return { items: data, page: 1, limit: total || 1, total, pages: 1 };
+    }
+
+    return {
+        items: data.items || [],
+        page: data.page || 1,
+        limit: data.limit || 10,
+        total: data.total || (data.items ? data.items.length : 0),
+        pages: data.pages || 1
+    };
+}
+
+function updatePaginationUI(section) {
+    const state = paginationState[section];
+    const info = document.getElementById(`${section}PageInfo`);
+    const prev = document.getElementById(`${section}Prev`);
+    const next = document.getElementById(`${section}Next`);
+
+    if (info) info.textContent = `Pagina ${state.page} de ${state.pages}`;
+    if (prev) prev.disabled = state.page <= 1;
+    if (next) next.disabled = state.page >= state.pages;
+}
+
+function changePage(section, delta) {
+    const state = paginationState[section];
+    const nextPage = Math.min(Math.max(state.page + delta, 1), state.pages || 1);
+    if (nextPage === state.page) return;
+    state.page = nextPage;
+    AdminUI[section].load();
+}
+
+function setupPaginationControls() {
+    ['inventory', 'orders', 'users'].forEach(section => {
+        const prev = document.getElementById(`${section}Prev`);
+        const next = document.getElementById(`${section}Next`);
+        if (prev) prev.addEventListener('click', () => changePage(section, -1));
+        if (next) next.addEventListener('click', () => changePage(section, 1));
+    });
 }
 
 // --- AUTHENTICATION ---
 
 function init() {
+    setupPaginationControls();
     let token = localStorage.getItem('acme_admin_token');
 
     // Auto-login: Si no hay token de admin, intentar usar el de la tienda principal
@@ -101,7 +142,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
                 throw new Error('Token inválido recibido del servidor.');
             }
         } else {
-            throw new Error(data.message || 'Error al iniciar sesión');
+            throw new Error(data.msg || data.message || 'Error al iniciar sesión');
         }
     } catch (error) {
         errorMsg.textContent = error.message;
@@ -148,6 +189,16 @@ async function fetchAdmin(endpoint, options = {}, silent = false) {
     }
 }
 
+async function readErrorMessage(response, fallback) {
+    if (!response) return fallback;
+    try {
+        const data = await response.json();
+        return data.msg || data.message || fallback;
+    } catch (e) {
+        return fallback;
+    }
+}
+
 // --- NAVIGATION ---
 
 function showSection(sectionId) {
@@ -181,10 +232,21 @@ const AdminUI = {
         data: [], // Almacenamos los datos para filtrar localmente
         async load() {
             setLoading(true);
-            const response = await fetchAdmin('/products');
+            const { page, limit } = paginationState.inventory;
+            const searchQuery = searchState.inventory ? `&q=${encodeURIComponent(searchState.inventory)}` : '';
+            const response = await fetchAdmin(`/products?page=${page}&limit=${limit}${searchQuery}`);
             if (response && response.ok) {
-                this.data = await response.json();
+                const data = await response.json();
+                const normalized = normalizePagedResponse(data);
+                this.data = normalized.items;
+                paginationState.inventory = {
+                    page: normalized.page,
+                    limit: normalized.limit,
+                    total: normalized.total,
+                    pages: normalized.pages
+                };
                 this.render(this.data);
+                updatePaginationUI('inventory');
             }
             setLoading(false);
         },
@@ -195,7 +257,7 @@ const AdminUI = {
                 const productId = p._id || p.id;
                 return `
                 <tr>
-                    <td><img src="${resolveImageUrl(p.img)}" class="product-thumb" alt="img"></td>
+                    <td><img src="${resolveImageUrl(p.img, API_BASE_URL)}" class="product-thumb" alt="img"></td>
                     <td>
                         <div style="font-weight:600">${p.title}</div>
                         <small style="color:#888">ID: ${productId}</small>
@@ -211,22 +273,27 @@ const AdminUI = {
             }).join('');
         },
         filter(query) {
-            const lowerCaseQuery = query.toLowerCase();
-            const filtered = this.data.filter(p => {
-                const productId = p._id || p.id;
-                return p.title.toLowerCase().includes(lowerCaseQuery) ||
-                       (productId && productId.toString().toLowerCase().includes(lowerCaseQuery));
-            });
-            this.render(filtered);
+            searchState.inventory = query.trim();
+            paginationState.inventory.page = 1;
+            this.load();
         }
     },
     orders: {
         async load() {
             setLoading(true);
-            const response = await fetchAdmin('/orders');
+            const { page, limit } = paginationState.orders;
+            const response = await fetchAdmin(`/orders?page=${page}&limit=${limit}`);
             if (response && response.ok) {
-                const orders = await response.json();
-                this.render(orders);
+                const data = await response.json();
+                const normalized = normalizePagedResponse(data);
+                paginationState.orders = {
+                    page: normalized.page,
+                    limit: normalized.limit,
+                    total: normalized.total,
+                    pages: normalized.pages
+                };
+                this.render(normalized.items);
+                updatePaginationUI('orders');
             }
             setLoading(false);
         },
@@ -234,6 +301,7 @@ const AdminUI = {
             const tbody = document.querySelector('#ordersTable tbody');
             tbody.innerHTML = orders.map(o => {
                 let badgeClass = 'badge-warning';
+                if (o.status === 'Pagado') badgeClass = 'badge-success';
                 if (o.status === 'Enviado') badgeClass = 'badge-info';
                 if (o.status === 'Entregado') badgeClass = 'badge-success';
                 if (o.status === 'Cancelado') badgeClass = 'badge-danger';
@@ -269,10 +337,19 @@ const AdminUI = {
     users: {
         async load() {
             setLoading(true);
-            const response = await fetchAdmin('/users');
+            const { page, limit } = paginationState.users;
+            const response = await fetchAdmin(`/users?page=${page}&limit=${limit}`);
             if (response && response.ok) {
-                const users = await response.json();
-                this.render(users);
+                const data = await response.json();
+                const normalized = normalizePagedResponse(data);
+                paginationState.users = {
+                    page: normalized.page,
+                    limit: normalized.limit,
+                    total: normalized.total,
+                    pages: normalized.pages
+                };
+                this.render(normalized.items);
+                updatePaginationUI('users');
             }
             setLoading(false);
         },
@@ -470,7 +547,8 @@ async function saveProduct(imageUrl) {
         AdminUI.inventory.load();
         showToast(currentProductToEdit ? 'Producto actualizado' : 'Producto creado', 'success');
     } else {
-        showToast('Error al guardar producto', 'error');
+        const errorMessage = await readErrorMessage(response, 'Error al guardar producto');
+        showToast(errorMessage, 'error');
     }
     setLoading(false);
 }
@@ -487,12 +565,37 @@ async function deleteProduct(productId) {
         AdminUI.inventory.load();
         showToast('Producto eliminado correctamente', 'success');
     } else {
-        showToast('Error al eliminar producto', 'error');
+        const errorMessage = await readErrorMessage(response, 'Error al eliminar producto');
+        showToast(errorMessage, 'error');
     }
     setLoading(false);
 }
 
-function openStatusModal(id, status) { currentOrderToEdit = id; document.getElementById('statusModalOrderId').textContent = `Pedido #${id}`; document.getElementById('newStatusSelect').value = status; document.getElementById('statusModal').classList.add('active'); }
+function openStatusModal(id, status) {
+    currentOrderToEdit = id;
+    document.getElementById('statusModalOrderId').textContent = `Pedido #${id}`;
+
+    const statusFlow = {
+        Pendiente: ['Pagado', 'Cancelado'],
+        Pagado: ['Enviado', 'Cancelado'],
+        Enviado: ['Entregado'],
+        Entregado: [],
+        Cancelado: []
+    };
+
+    const select = document.getElementById('newStatusSelect');
+    const allowedNext = statusFlow[status] || [];
+
+    Array.from(select.options).forEach(option => {
+        const isCurrent = option.value === status;
+        const isAllowed = allowedNext.includes(option.value);
+        option.disabled = !isCurrent && !isAllowed;
+        option.hidden = !isCurrent && !isAllowed;
+    });
+
+    select.value = status;
+    document.getElementById('statusModal').classList.add('active');
+}
 document.getElementById('confirmStatusBtn').addEventListener('click', async (e) => {
     e.preventDefault(); // Prevenir recarga de página para mantener la vista en la sección de Pedidos
     const newStatus = document.getElementById('newStatusSelect').value;

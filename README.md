@@ -75,7 +75,7 @@ Plataforma de comercio electronico completa construida con Node.js, Express y Mo
                  ▼
 ┌─────────────────────────────────────────────────┐
 │  Backend API (Render)                           │
-│  proyecto-e-commerce-acme.onrender.com        │
+│  priyecto-e-comerce-acme.onrender.com           │
 │  • Node.js + Express                            │
 │  • Autenticación JWT                            │
 │  • Lógica de negocio                            │
@@ -108,8 +108,8 @@ Plataforma de comercio electronico completa construida con Node.js, Express y Mo
 
 1) Clonar repositorio
 ```bash
-git clone https://github.com/armq0102/Proyecto-E-Commerce-ACME.git
-cd Proyecto-E-Commerce-ACME
+git clone https://github.com/tu-usuario/acme-ecommerce.git
+cd acme-ecommerce
 ```
 
 2) Instalar dependencias
@@ -135,6 +135,31 @@ npm start     # produccion
 ```
 
 Servidor disponible en `http://localhost:3000`.
+
+---
+
+## ✅ Tests (Backend)
+
+Tests basicos con Jest + Supertest + MongoDB en memoria.
+
+```bash
+cd backend
+npm test
+```
+
+Incluye pruebas de:
+- Registro y login
+- Perfil autenticado
+- Creacion de transaccion de pago (sandbox)
+
+---
+
+## 🧱 Decisiones de arquitectura (resumen)
+
+- **Ordenes como fuente de verdad:** la orden se crea antes del pago y se confirma en el webhook.
+- **Idempotencia en pagos:** se evita doble procesamiento por `transactionId`.
+- **Validacion de datos:** Zod valida payloads criticos en auth, pagos y admin.
+- **Paginacion en admin:** endpoints responden `items/page/limit/total/pages`.
 
 ---
 
@@ -206,7 +231,7 @@ CLOUDINARY_API_SECRET=tu_api_secret
 ## 🌍 Despliegue
 
 **Servicios utilizados:**
-- **Backend:** Render (https://proyecto-e-commerce-acme.onrender.com)
+- **Backend:** Render (https://priyecto-e-comerce-acme.onrender.com)
 - **Frontend:** Render (https://acme-1zib.onrender.com)
 - **Base de datos:** MongoDB Atlas
 - **Almacenamiento de imágenes:** Cloudinary

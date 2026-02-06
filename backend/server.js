@@ -27,8 +27,7 @@ const allowedOrigins = [
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-    // Permitir si el origen está en la lista O si hay un comodín '*' configurado
-    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -40,10 +39,19 @@ app.use(cors({
 // Seguridad básica contra payloads grandes
 app.use(express.json({ limit: '6mb' }));
 
+// Rate Limiting global para API (evita abuso). Webhook de pagos queda fuera.
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  skip: (req) => req.originalUrl === '/api/payments/webhook',
+  message: 'Demasiadas solicitudes, por favor intente nuevamente en 15 minutos.'
+});
+app.use('/api', apiLimiter);
+
 // Rate Limiting para Auth (Protección contra fuerza bruta)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 1000, // Aumentado a 1000 para evitar bloqueos durante pruebas intensivas
+  max: 200, // Sandbox: más estricto pero sin romper pruebas normales
   message: 'Demasiados intentos de inicio de sesión, por favor intente nuevamente en 15 minutos.'
 });
 app.use('/api/auth/', authLimiter);
@@ -81,11 +89,15 @@ app.use((err, req, res, next) => {
 // Esto soluciona la "race condition" que mostraba la base de datos como 'undefined'.
 const startServer = async () => {
   await connectDB();
-  app.listen(PORT, () => {
+  return app.listen(PORT, () => {
     console.log(`🚀 Servidor escuchando en http://localhost:${PORT}`);
     console.log(`🔧 Ambiente: ${process.env.NODE_ENV || 'development'}`);
     console.log(`💾 Base de datos activa: ${mongoose.connection.name}`);
   });
 };
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app, startServer };

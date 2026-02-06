@@ -3,6 +3,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../User.model');
 const verifyToken = require('../auth.middleware');
+const { sendError } = require('../utils/response');
+const { z, validate } = require('../utils/validate');
 
 const router = Router();
 
@@ -10,22 +12,33 @@ const router = Router();
 // RUTAS DE AUTENTICACIÓN
 // ==========================================
 
+const registerSchema = z.object({
+    name: z.string().trim().min(2, 'Nombre requerido.'),
+    email: z.string().trim().email('Email invalido.'),
+    password: z.string().min(8, 'La contraseña debe tener minimo 8 caracteres.')
+});
+
+const loginSchema = z.object({
+    email: z.string().trim().email('Email invalido.'),
+    password: z.string().min(1, 'La contraseña es obligatoria.')
+});
+
+const updateSchema = z.object({
+    name: z.string().trim().min(2, 'El nombre es obligatorio.'),
+    phone: z.string().trim().optional(),
+    address: z.string().trim().optional()
+});
+
 /**
  * @route   POST /api/auth/register
  * @desc    Registrar un nuevo usuario
  * @access  Public
  */
-router.post('/register', async (req, res) => {
+router.post('/register', validate(registerSchema), async (req, res) => {
     try {
         const { name, email, password } = req.body;
 
-        // 1. Validación básica de entrada
-        if (!name || !email || !password) {
-            return res.status(400).json({ 
-                ok: false, 
-                msg: 'Por favor, complete todos los campos (nombre, email, contraseña).' 
-            });
-        }
+        // 1. Validación básica de entrada (schema)
 
         // 2. Crear y guardar usuario
         // El Schema (User.model.js) se encarga automáticamente de hacer trim() y lowercase()
@@ -41,17 +54,11 @@ router.post('/register', async (req, res) => {
     } catch (error) {
         // Manejo específico para email duplicado (MongoDB Error 11000)
         if (error.code === 11000) {
-            return res.status(409).json({ 
-                ok: false, 
-                msg: 'El correo electrónico ya está registrado.' 
-            });
+            return sendError(res, 409, 'El correo electrónico ya está registrado.');
         }
 
         console.error('❌ Error en registro:', error);
-        res.status(500).json({ 
-            ok: false, 
-            msg: 'Error interno del servidor al registrar usuario.' 
-        });
+        return sendError(res, 500, 'Error interno del servidor al registrar usuario.', error.message);
     }
 });
 
@@ -60,44 +67,29 @@ router.post('/register', async (req, res) => {
  * @desc    Iniciar sesión y obtener token
  * @access  Public
  */
-router.post('/login', async (req, res) => {
+router.post('/login', validate(loginSchema), async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // 1. Validación básica
-        if (!email || !password) {
-            return res.status(400).json({ 
-                ok: false, 
-                msg: 'Por favor, ingrese email y contraseña.' 
-            });
-        }
+        // 1. Validación básica (schema)
 
         // 2. Buscar usuario (Normalizado para evitar errores de Case Sensitive)
         const normalizedEmail = email.toLowerCase().trim();
 
         const user = await User.findOne({ email: normalizedEmail });
         if (!user) {
-            return res.status(400).json({ 
-                ok: false, 
-                msg: 'Credenciales inválidas (Usuario no encontrado).' 
-            });
+            return sendError(res, 400, 'Credenciales inválidas (Usuario no encontrado).');
         }
 
         // NUEVA VALIDACIÓN: Verificar si el usuario está suspendido
         if (user.status && user.status !== 'active') {
-            return res.status(403).json({
-                ok: false,
-                msg: 'Tu cuenta está suspendida. Contacta al administrador.'
-            });
+            return sendError(res, 403, 'Tu cuenta está suspendida. Contacta al administrador.');
         }
 
         // 3. Verificar contraseña
         const isMatch = await user.comparePassword(password);
         if (!isMatch) {
-            return res.status(400).json({ 
-                ok: false, 
-                msg: 'Credenciales inválidas (Contraseña incorrecta).' 
-            });
+            return sendError(res, 400, 'Credenciales inválidas (Contraseña incorrecta).');
         }
 
         // 4. Generar Token JWT
@@ -122,10 +114,7 @@ router.post('/login', async (req, res) => {
 
     } catch (error) {
         console.error('❌ Error en login:', error);
-        res.status(500).json({ 
-            ok: false, 
-            msg: 'Error interno del servidor al iniciar sesión.' 
-        });
+        return sendError(res, 500, 'Error interno del servidor al iniciar sesión.', error.message);
     }
 });
 
@@ -139,10 +128,7 @@ router.get('/me', verifyToken, async (req, res) => {
         const user = await User.findById(req.user.userId).select('-password');
         
         if (!user) {
-            return res.status(404).json({ 
-                ok: false, 
-                msg: 'Usuario no encontrado.' 
-            });
+            return sendError(res, 404, 'Usuario no encontrado.');
         }
         
         // NOTA: Se devuelve el objeto user directamente para mantener compatibilidad 
@@ -151,10 +137,7 @@ router.get('/me', verifyToken, async (req, res) => {
 
     } catch (error) {
         console.error('❌ Error obteniendo perfil:', error);
-        res.status(500).json({ 
-            ok: false, 
-            msg: 'Error interno del servidor al obtener perfil.' 
-        });
+        return sendError(res, 500, 'Error interno del servidor al obtener perfil.', error.message);
     }
 });
 
@@ -163,17 +146,11 @@ router.get('/me', verifyToken, async (req, res) => {
  * @desc    Actualizar datos del perfil
  * @access  Private
  */
-router.put('/update', verifyToken, async (req, res) => {
+router.put('/update', verifyToken, validate(updateSchema), async (req, res) => {
     try {
         const { name, phone, address } = req.body;
 
-        // Validación ligera
-        if (!name) {
-            return res.status(400).json({
-                ok: false,
-                msg: 'El nombre es obligatorio.'
-            });
-        }
+        // Validación ligera (schema)
 
         const user = await User.findByIdAndUpdate(
             req.user.userId, 
@@ -182,7 +159,7 @@ router.put('/update', verifyToken, async (req, res) => {
         ).select('-password');
         
         if (!user) {
-            return res.status(404).json({ ok: false, msg: 'Usuario no encontrado.' });
+            return sendError(res, 404, 'Usuario no encontrado.');
         }
 
         res.json({ 
@@ -193,10 +170,7 @@ router.put('/update', verifyToken, async (req, res) => {
 
     } catch (error) {
         console.error('❌ Error actualizando perfil:', error);
-        res.status(500).json({ 
-            ok: false, 
-            msg: 'Error interno del servidor al actualizar perfil.' 
-        });
+        return sendError(res, 500, 'Error interno del servidor al actualizar perfil.', error.message);
     }
 });
 

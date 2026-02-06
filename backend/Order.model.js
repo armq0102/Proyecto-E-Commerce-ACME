@@ -25,7 +25,7 @@ const orderItemSchema = new mongoose.Schema({
 const statusHistorySchema = new mongoose.Schema({
     status: {
         type: String,
-        enum: ['Pendiente', 'Enviado', 'Entregado', 'Cancelado'],
+        enum: ['Pendiente', 'Pagado', 'Enviado', 'Entregado', 'Cancelado'],
         required: true
     },
     date: {
@@ -61,9 +61,16 @@ const orderSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Pendiente', 'Enviado', 'Entregado', 'Cancelado'],
+        enum: ['Pendiente', 'Pagado', 'Enviado', 'Entregado', 'Cancelado'],
         default: 'Pendiente',
         index: true
+    },
+    paymentInfo: {
+        transactionId: { type: String, unique: true, sparse: true, index: true },
+        gateway: { type: String },
+        amountInCents: { type: Number, min: 0 },
+        reference: { type: String },
+        status: { type: String }
     },
     statusHistory: {
         type: [statusHistorySchema],
@@ -83,5 +90,7 @@ orderSchema.pre('save', function(next) {
     }
     next();
 });
+
+orderSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Order', orderSchema);
