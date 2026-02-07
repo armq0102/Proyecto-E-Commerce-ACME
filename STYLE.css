@@ -49,6 +49,9 @@ body {
 }
 .section-title.is-left {
     text-align: left;
+    max-width: 1032px;
+    margin-left: auto;
+    margin-right: auto;
 }
 .section-subtitle {
     text-align: center;
@@ -57,6 +60,9 @@ body {
 }
 .section-subtitle.is-left {
     text-align: left;
+    max-width: 1032px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 /* Categories */
