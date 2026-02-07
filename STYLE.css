@@ -1218,21 +1218,19 @@ body {
 /* Productos grid para páginas de categoría */
 .products-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(240px, 260px));
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     column-gap: 24px;
     row-gap: 32px;
     max-width: 1200px;
     margin: 24px auto 0;
     padding: 0 16px;
     font-family: "Inter", "Roboto", "Helvetica", sans-serif;
-    justify-content: center;
 }
 
 @media (max-width: 1024px) {
     .products-grid {
-        grid-template-columns: repeat(2, minmax(240px, 260px));
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
         row-gap: 28px;
-        justify-content: center;
     }
 
     .product-card .add-to-cart {
@@ -1243,9 +1241,8 @@ body {
 
 @media (max-width: 640px) {
     .products-grid {
-        grid-template-columns: minmax(240px, 1fr);
+        grid-template-columns: 1fr;
         row-gap: 24px;
-        justify-content: center;
     }
 
     .product-card .add-to-cart {
