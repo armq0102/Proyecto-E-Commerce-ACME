@@ -32,6 +32,10 @@ body {
     padding-top: 40px;
     padding-bottom: 40px;
 }
+
+.category-page.container {
+    max-width: 1032px;
+}
 .section-block--tight {
     margin: 48px 0 32px;
 }
@@ -1222,17 +1226,21 @@ body {
 
 /* Productos grid para páginas de categoría */
 .products-grid {
-    display: grid;
+    display: inline-grid;
     grid-template-columns: repeat(auto-fit, 240px);
     column-gap: 24px;
     row-gap: 32px;
     justify-content: center;
     box-sizing: border-box;
-    width: fit-content;
+    width: auto;
     max-width: 100%;
     margin: 24px auto;
     padding: 0;
     font-family: "Inter", "Roboto", "Helvetica", sans-serif;
+}
+
+.products-grid-wrap {
+    text-align: center;
 }
 
 @media (max-width: 1024px) {
