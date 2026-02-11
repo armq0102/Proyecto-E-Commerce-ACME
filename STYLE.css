@@ -83,8 +83,15 @@ body {
     transform: translateY(-8px);
 }
 .category-card__icon {
-    font-size: 3em;
     margin-bottom: 16px;
+    line-height: 0;
+    color: rgba(255,255,255,0.95);
+}
+.icon-svg {
+    width: 56px;
+    height: 56px;
+    display: block;
+    margin: 0 auto;
 }
 .category-card__title {
     font-size: 1.5em;
@@ -123,9 +130,14 @@ body {
     text-align: center;
 }
 .benefit-icon {
-    font-size: 2.5em;
     margin-bottom: 12px;
+    line-height: 0;
+    color: #111827;
 }
+.benefit-item:nth-child(1) .benefit-icon { color: #2563eb; }
+.benefit-item:nth-child(2) .benefit-icon { color: #dc2626; }
+.benefit-item:nth-child(3) .benefit-icon { color: #16a34a; }
+.benefit-item:nth-child(4) .benefit-icon { color: #f59e0b; }
 .benefit-title {
     font-weight: 600;
     margin-bottom: 8px;
