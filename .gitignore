@@ -7,3 +7,5 @@ backend/.env
 images/*.webp
 images/*.jpg
 images/*.png
+!images/banner-basicos.png
+!images/Banner-inicio2.png
