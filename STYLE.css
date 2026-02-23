@@ -1,3 +1,23 @@
+.orders-product-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 180px;
+}
+.orders-product-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.orders-product-title {
+    font-weight: 600;
+    font-size: 1rem;
+    color: #222;
+}
+.orders-product-id {
+    font-size: 0.85rem;
+    color: #888;
+}
 /* Variables de Color */
 :root {
     --acme-black: #1a1a1a;
@@ -906,6 +926,44 @@ body {
 }
 .orders-table tr {
     border-bottom: 1px solid #eee;
+}
+.orders-products {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+}
+.orders-product-thumb,
+.orders-product-fallback {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+.orders-product-thumb {
+    object-fit: cover;
+    background: #fff;
+}
+.orders-product-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #f1f3f5;
+    color: #555;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.orders-product-more {
+    font-size: 0.8rem;
+    color: #555;
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+.orders-products-empty {
+    font-size: 0.85rem;
+    color: #666;
 }
 .status-pill {
     display: inline-block;

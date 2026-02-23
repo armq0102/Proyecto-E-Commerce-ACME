@@ -183,9 +183,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const buildOrdersTable = (orders) => {
+        const renderOrderItems = (items) => {
+            const safeItems = Array.isArray(items) ? items : [];
+            if (safeItems.length === 0) {
+                return '<span class="orders-products-empty">Sin productos</span>';
+            }
+            // Mostrar imagen y nombre del primer producto
+            const first = safeItems[0];
+            const title = first.title || 'Producto';
+            let imgHtml = '';
+            if (first.img) {
+                imgHtml = `<img class="orders-product-thumb" src="${first.img}" alt="${title}">`;
+            } else {
+                imgHtml = `<span class="orders-product-fallback" title="${title}">${title.charAt(0) || '•'}</span>`;
+            }
+            return `<div class="orders-product-main">${imgHtml}<div class="orders-product-info"><div class="orders-product-title">${title}</div><div class="orders-product-id">ID: ${first.productId || ''}</div></div></div>`;
+        };
+
         let html = '<div class="orders-table-wrap">';
         html += '<table class="orders-table">';
-        html += '<thead><tr><th>ID</th><th>Fecha</th><th>Total</th><th>Estado</th></tr></thead><tbody>';
+        html += '<thead><tr><th>Productos</th><th>ID</th><th>Fecha</th><th>Total</th><th>Estado</th></tr></thead><tbody>';
 
         orders.forEach(order => {
             const orderId = order.id || order._id || '';
@@ -193,6 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const statusClass = statusClassMap[status] || 'status-pill--pending';
 
             html += `<tr>
+                <td>${renderOrderItems(order.items)}</td>
                 <td>#${orderId}</td>
                 <td>${new Date(order.createdAt || order.date).toLocaleDateString()}</td>
                 <td><strong>${formatCOP(order.total)}</strong></td>
