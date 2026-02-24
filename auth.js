@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let html = '<div class="orders-table-wrap">';
         html += '<table class="orders-table">';
-        html += '<thead><tr><th>Productos</th><th>ID</th><th>Fecha</th><th>Total</th><th>Estado</th></tr></thead><tbody>';
+        html += '<thead><tr><th>Productos</th><th>Fecha</th><th>Total</th><th>Estado</th></tr></thead><tbody>';
 
         orders.forEach(order => {
             const orderId = order.id || order._id || '';
@@ -211,7 +211,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             html += `<tr>
                 <td>${renderOrderItems(order.items)}</td>
-                <td>#${orderId}</td>
                 <td>${new Date(order.createdAt || order.date).toLocaleDateString()}</td>
                 <td><strong>${formatCOP(order.total)}</strong></td>
                 <td><span class="status-pill ${statusClass}">${status}</span></td>
